@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Team Overview — The Butterfly Effect{% endblock %}
+
+{% block content %}
+<div class="team-header">
+  <h1>Team Overview</h1>
+  <a class="btn-add" href="{{ url_for('add_score') }}">+ Log Score</a>
+</div>
+
+{% if player_rows %}
+<div class="table-wrapper">
+  <table class="team-table">
+    <thead>
+      <tr>
+        <th>Player</th>
+        <th>Joined</th>
+        {% for lvl in levels %}
+        <th>L{{ lvl }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in player_rows %}
+      <tr>
+        <td><a href="{{ url_for('player_dashboard', user_id=row.user_id) }}">{{ row.username }}</a></td>
+        <td>{{ row.created_at.strftime("%Y-%m-%d") }}</td>
+        {% for lvl in levels %}
+        <td>
+          {%- if row.pbs.get(lvl) is not none -%}
+            {{ ms_to_display(row.pbs[lvl]) }}
+          {%- else -%}
+            —
+          {%- endif -%}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="team-best-row">
+        <td colspan="2"><strong>Team Best</strong></td>
+        {% for lvl in levels %}
+        <td>
+          {%- if team_fastest.get(lvl) is not none -%}
+            <strong>{{ ms_to_display(team_fastest[lvl]) }}</strong>
+          {%- else -%}
+            —
+          {%- endif -%}
+        </td>
+        {% endfor %}
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% else %}
+<p>No players have completed any levels yet.</p>
+{% endif %}
+{% endblock %}

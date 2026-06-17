@@ -1,13 +1,320 @@
 import os
-from flask import Flask
+
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import (
+    LoginManager,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
+from werkzeug.security import check_password_hash, generate_password_hash
+
+import psycopg2.errors
+
+from database import (
+    create_user,
+    get_password_hash,
+    load_user_by_id,
+    load_user_by_username,
+)
+from models import (
+    get_all_level_scores,
+    get_all_players,
+    get_player,
+    get_player_all_loop_comparisons,
+    get_player_loop_comparison,
+    get_player_scores,
+    get_player_scores_for_level,
+    get_team_fastest_per_level,
+)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
 
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
+login_manager.login_message = "Please log in to access this page."
+
+LEVELS = list(range(1, 21))  # levels 1-20
+
+
+@login_manager.user_loader
+def user_loader(user_id):
+    return load_user_by_id(user_id)
+
+
+def ms_to_display(ms: int) -> str:
+    """Convert milliseconds to MM:SS.cs string (e.g. 272100 → '4:32.10')."""
+    minutes = int(ms // 60000)
+    whole_seconds = int((ms % 60000) // 1000)
+    centiseconds = (ms // 10) % 100
+    return f"{minutes}:{whole_seconds:02d}.{centiseconds:02d}"
+
+
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("player_dashboard", user_id=current_user.user_id))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        user = load_user_by_username(username)
+        stored_hash = get_password_hash(username) if user else None
+
+        if user is None or stored_hash is None or not check_password_hash(stored_hash, password):
+            flash("Invalid username or password.", "error")
+            return render_template("login.html"), 401
+
+        login_user(user)
+        next_page = request.args.get("next")
+        return redirect(next_page or url_for("player_dashboard", user_id=user.user_id))
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for("player_dashboard", user_id=current_user.user_id))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        age_confirmed = request.form.get("age_confirmed") == "on"
+
+        errors = []
+        if not username:
+            errors.append("Username is required.")
+        if not email:
+            errors.append("Email is required.")
+        if len(password) < 8:
+            errors.append("Password must be at least 8 characters.")
+        if not age_confirmed:
+            errors.append("You must confirm you are 13 or older.")
+
+        if errors:
+            for msg in errors:
+                flash(msg, "error")
+            return render_template("register.html"), 400
+
+        hashed = generate_password_hash(password)
+        try:
+            create_user(username, email, hashed, age_confirmed)
+        except Exception:
+            flash("Username or email already taken.", "error")
+            return render_template("register.html"), 409
+
+        flash("Account created! Please log in.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
+
+
+# ---------------------------------------------------------------------------
+# Public routes
+# ---------------------------------------------------------------------------
 
 @app.route("/")
 def index():
     return "<h1>The Butterfly Effect</h1><p>Server is running.</p>"
+
+
+# ---------------------------------------------------------------------------
+# Protected routes
+# ---------------------------------------------------------------------------
+
+@app.route("/player/<user_id>")
+@login_required
+def player_dashboard(user_id: str):
+    # Players can only view their own dashboard; admins can view any.
+    if not current_user.is_admin and current_user.user_id != user_id:
+        abort(403)
+
+    player = get_player(user_id)
+    if player is None:
+        abort(404)
+
+    scores = get_player_scores(user_id)
+
+    rows = []
+    for score in scores:
+        rows.append({
+            "level_number": score["level_number"],
+            "best_time_ms": score["best_time_ms"],
+            "time_display": ms_to_display(score["best_time_ms"]),
+            "loops_used": score["loops_used"],
+            "completed_at": score["completed_at"],
+            "is_personal_best": True,
+        })
+
+    default_level = rows[0]["level_number"] if rows else 1
+
+    return render_template(
+        "dashboard.html",
+        player=player,
+        rows=rows,
+        levels=LEVELS,
+        default_level=default_level,
+    )
+
+
+@app.route("/player/<user_id>/chart-data")
+@login_required
+def player_chart_data(user_id: str):
+    if not current_user.is_admin and current_user.user_id != user_id:
+        abort(403)
+
+    player = get_player(user_id)
+    if player is None:
+        abort(404)
+
+    try:
+        level = int(request.args.get("level", 1))
+    except (TypeError, ValueError):
+        return jsonify({"data": None, "error": "level must be an integer"}), 400
+
+    if level not in LEVELS:
+        return jsonify({"data": None, "error": "level must be between 1 and 20"}), 400
+
+    score = get_player_scores_for_level(user_id, level)
+
+    if score is None:
+        return jsonify({"data": {"labels": [], "times": []}, "error": None})
+
+    completed_at = score["completed_at"]
+    label = completed_at.strftime("%Y-%m-%d") if hasattr(completed_at, "strftime") else str(completed_at)[:10]
+
+    return jsonify({
+        "data": {
+            "labels": [label],
+            "times": [round(score["best_time_ms"] / 1000, 3)],
+        },
+        "error": None,
+    })
+
+
+@app.route("/player/<user_id>/compare")
+@login_required
+def player_compare(user_id: str):
+    if not current_user.is_admin and current_user.user_id != user_id:
+        abort(403)
+
+    player = get_player(user_id)
+    if player is None:
+        abort(404)
+
+    try:
+        level = int(request.args.get("level", 1))
+    except (TypeError, ValueError):
+        level = 1
+
+    if level not in LEVELS:
+        level = 1
+
+    # Per-level split for the two-line chart
+    comparison = get_player_loop_comparison(user_id, level)
+
+    # Cross-level aggregates for the stats box
+    all_splits = get_player_all_loop_comparisons(user_id)
+    early_rows = all_splits["early"]
+    late_rows  = all_splits["late"]
+
+    def avg_ms(rows):
+        if not rows:
+            return None
+        return sum(r["best_time_ms"] for r in rows) / len(rows)
+
+    avg_early_ms = avg_ms(early_rows)
+    avg_late_ms  = avg_ms(late_rows)
+
+    if avg_early_ms is not None and avg_late_ms is not None:
+        gap_ms  = avg_late_ms - avg_early_ms
+        gap_pct = (gap_ms / avg_late_ms) * 100
+    else:
+        gap_ms  = None
+        gap_pct = None
+
+    def _chart_point(row):
+        if row is None:
+            return None
+        completed_at = row["completed_at"]
+        label = completed_at.strftime("%Y-%m-%d") if hasattr(completed_at, "strftime") else str(completed_at)[:10]
+        return {"label": label, "time_s": round(row["best_time_ms"] / 1000, 3)}
+
+    return render_template(
+        "compare.html",
+        player=player,
+        levels=LEVELS,
+        selected_level=level,
+        early_point=_chart_point(comparison["early"]),
+        late_point=_chart_point(comparison["late"]),
+        avg_early_ms=avg_early_ms,
+        avg_late_ms=avg_late_ms,
+        avg_early_display=ms_to_display(round(avg_early_ms)) if avg_early_ms is not None else None,
+        avg_late_display=ms_to_display(round(avg_late_ms))  if avg_late_ms  is not None else None,
+        early_count=len(early_rows),
+        late_count=len(late_rows),
+        gap_ms=gap_ms,
+        gap_pct=gap_pct,
+    )
+
+
+@app.route("/team")
+@login_required
+def team_dashboard():
+    if not current_user.is_admin:
+        abort(403)
+
+    players = get_all_players()
+    all_scores = get_all_level_scores()
+    team_fastest = get_team_fastest_per_level()
+
+    # Build per-player PB lookup: {user_id: {level_number: best_time_ms}}
+    pb_by_player = {}
+    for row in all_scores:
+        uid = str(row["user_id"])
+        pb_by_player.setdefault(uid, {})[row["level_number"]] = row["best_time_ms"]
+
+    player_rows = []
+    for p in players:
+        uid = str(p["user_id"])
+        player_rows.append({
+            "user_id": uid,
+            "username": p["username"],
+            "created_at": p["created_at"],
+            "pbs": pb_by_player.get(uid, {}),
+        })
+
+    return render_template(
+        "team.html",
+        player_rows=player_rows,
+        levels=LEVELS,
+        team_fastest=team_fastest,
+        ms_to_display=ms_to_display,
+    )
+
+
+@app.route("/add")
+@login_required
+def add_score():
+    if not current_user.is_admin:
+        abort(403)
+    return render_template("add.html")
 
 
 if __name__ == "__main__":
