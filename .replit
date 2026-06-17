@@ -1,9 +1,10 @@
-run = "gunicorn app:app --bind 0.0.0.0:5000"
+run = "python3 -m gunicorn app:app --bind 0.0.0.0:8080"
 
 [deployment]
-run = ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:5000"]
+run = ["sh", "-c", "python3 -m gunicorn app:app --bind 0.0.0.0:8080"]
+build = ["sh", "-c", "pip install -r requirements.txt"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
-localPort = 5000
+localPort = 8080
 externalPort = 80
