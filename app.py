@@ -131,7 +131,7 @@ def register():
 
 @app.route("/")
 def index():
-    return "<h1>The Butterfly Effect</h1><p>Server is running.</p>"
+    return redirect(url_for("login"))
 
 
 # ---------------------------------------------------------------------------

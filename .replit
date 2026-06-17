@@ -1,5 +1,9 @@
-run = "gunicorn app:app --bind 0.0.0.0:8080"
+run = "gunicorn app:app --bind 0.0.0.0:5000"
 
 [deployment]
-run = ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:8080"]
+run = ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:5000"]
 deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
