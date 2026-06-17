@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ player.username }} — Player Dashboard{% endblock %}
+
+{% block content %}
+<h1>{{ player.username }}</h1>
+<p class="meta">Joined {{ player.created_at.strftime("%B %d, %Y") }}
+  {% if player.email_verified %}<span class="badge verified">Verified</span>{% endif %}
+</p>
+
+<h2>Level Scores</h2>
+
+{% if rows %}
+<table class="scores-table">
+  <thead>
+    <tr>
+      <th>Level</th>
+      <th>Best Time</th>
+      <th>Loops Used</th>
+      <th>Completed</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr {% if row.is_personal_best %}class="pb-row"{% endif %}>
+      <td>{{ row.level_number }}</td>
+      <td>
+        {% if row.is_personal_best %}⭐{% endif %}
+        {{ row.time_display }}
+      </td>
+      <td>{{ row.loops_used }}</td>
+      <td>{{ row.completed_at.strftime("%Y-%m-%d") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No levels completed yet.</p>
+{% endif %}
+
+<div class="section-header">
+  <h2>Progress Chart</h2>
+  <a class="btn-compare" href="/player/{{ player.user_id }}/compare?level={{ default_level }}">
+    Compare →
+  </a>
+</div>
+
+<div class="chart-controls">
+  <label for="level-select">Level:</label>
+  <select id="level-select">
+    {% for lvl in levels %}
+    <option value="{{ lvl }}" {% if lvl == default_level %}selected{% endif %}>
+      Level {{ lvl }}
+    </option>
+    {% endfor %}
+  </select>
+</div>
+
+<div class="chart-container">
+  <canvas id="timeChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  const userId = {{ player.user_id | tojson }};
+
+  function msToDisplay(seconds) {
+    const totalMs = Math.round(seconds * 1000);
+    const mins = Math.floor(totalMs / 60000);
+    const secs = Math.floor((totalMs % 60000) / 1000);
+    const cs   = Math.floor((totalMs % 1000) / 10);
+    return `${mins}:${String(secs).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+  }
+
+  const ctx = document.getElementById('timeChart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: 'Best Time',
+      data: [],
+      borderColor: '#7c3aed',
+      backgroundColor: 'rgba(124,58,237,0.15)',
+      pointRadius: 5,
+      tension: 0.3,
+    }]},
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          reverse: true,   // lower time = top of chart = better
+          ticks: {
+            callback: (val) => msToDisplay(val),
+          },
+          title: { display: true, text: 'Time (MM:SS.cs)' },
+        },
+        x: {
+          title: { display: true, text: 'Date Completed' },
+        },
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (ctx) => msToDisplay(ctx.parsed.y),
+          },
+        },
+      },
+    },
+  });
+
+  async function loadChart(level) {
+    const res  = await fetch(`/player/${userId}/chart-data?level=${level}`);
+    const json = await res.json();
+    if (json.error || !json.data) return;
+    chart.data.labels              = json.data.labels;
+    chart.data.datasets[0].data   = json.data.times;
+    chart.data.datasets[0].label  = `Level ${level} — Best Time`;
+    chart.update();
+  }
+
+  const select = document.getElementById('level-select');
+  select.addEventListener('change', () => loadChart(select.value));
+  loadChart(select.value);
+</script>
+{% endblock %}

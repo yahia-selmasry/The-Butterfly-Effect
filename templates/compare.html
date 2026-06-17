@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ player.username }} — Loop Efficiency Compare{% endblock %}
+
+{% block content %}
+<h1>{{ player.username }} — Loop Efficiency</h1>
+<p class="meta">
+  <a href="/player/{{ player.user_id }}">← Back to Dashboard</a>
+</p>
+
+<p class="explain">
+  <strong>Early clears</strong> (loops 1–2) are shown in <span style="color:#ef4444">red</span>.
+  <strong>Late clears</strong> (loops 3–5) are shown in <span style="color:#3b82f6">blue</span>.
+  Lower is better — a faster time sits higher on the chart.
+</p>
+
+{# Level picker — reloads page with new level param #}
+<div class="chart-controls">
+  <label for="level-select">Level:</label>
+  <select id="level-select" onchange="window.location.href='/player/{{ player.user_id }}/compare?level='+this.value">
+    {% for lvl in levels %}
+    <option value="{{ lvl }}" {% if lvl == selected_level %}selected{% endif %}>
+      Level {{ lvl }}
+    </option>
+    {% endfor %}
+  </select>
+</div>
+
+{# Two-line chart for the selected level #}
+<div class="chart-container">
+  <canvas id="compareChart"></canvas>
+</div>
+
+{# Summary stats box #}
+<div class="stats-box">
+  <h2>Stats across all completed levels</h2>
+  <table class="stats-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Avg Best Time</th>
+        <th>Levels in group</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="early-row">
+        <td>🔴 Early clears (loops 1–2)</td>
+        <td>{{ avg_early_display if avg_early_display else "—" }}</td>
+        <td>{{ early_count }}</td>
+      </tr>
+      <tr class="late-row">
+        <td>🔵 Late clears (loops 3–5)</td>
+        <td>{{ avg_late_display if avg_late_display else "—" }}</td>
+        <td>{{ late_count }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if gap_ms is not none and gap_ms is not none %}
+  <p class="gap-stat">
+    Gap: <strong>{{ "%.2f"|format(gap_ms / 1000) }}s</strong>
+    ({{ "%.1f"|format(gap_pct) }}% — early clears are faster on average)
+  </p>
+  {% else %}
+  <p class="gap-stat">Not enough data in both groups to calculate a gap.</p>
+  {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  function secToDisplay(s) {
+    const ms   = Math.round(s * 1000);
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    const cs   = Math.floor((ms % 1000) / 10);
+    return `${mins}:${String(secs).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+  }
+
+  // Data injected from the server
+  const earlyPoint = {{ early_point | tojson }};
+  const latePoint  = {{ late_point  | tojson }};
+
+  const earlyDataset = {
+    label: 'Early clear (loops 1–2)',
+    data:  earlyPoint ? [{ x: earlyPoint.label, y: earlyPoint.time_s }] : [],
+    borderColor: '#ef4444',
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    pointRadius: 7,
+    tension: 0.3,
+  };
+
+  const lateDataset = {
+    label: 'Late clear (loops 3–5)',
+    data:  latePoint ? [{ x: latePoint.label, y: latePoint.time_s }] : [],
+    borderColor: '#3b82f6',
+    backgroundColor: 'rgba(59,130,246,0.15)',
+    pointRadius: 7,
+    tension: 0.3,
+  };
+
+  const ctx = document.getElementById('compareChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [earlyDataset, lateDataset] },
+    options: {
+      responsive: true,
+      parsing: false,
+      scales: {
+        y: {
+          reverse: true,  // lower time = top = better
+          ticks: { callback: (v) => secToDisplay(v) },
+          title: { display: true, text: 'Best Time (MM:SS.cs)' },
+        },
+        x: {
+          type: 'category',
+          title: { display: true, text: 'Date Completed' },
+        },
+      },
+      plugins: {
+        tooltip: {
+          callbacks: { label: (ctx) => secToDisplay(ctx.parsed.y) },
+        },
+        title: {
+          display: true,
+          text: `Level {{ selected_level }} — Early vs Late Clear`,
+        },
+      },
+    },
+  });
+</script>
+{% endblock %}

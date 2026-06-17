@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Register — The Butterfly Effect{% endblock %}
+
+{% block content %}
+<h1>Create Account</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <p class="flash flash-{{ category }}">{{ message }}</p>
+  {% endfor %}
+{% endwith %}
+
+<form method="post" action="{{ url_for('register') }}">
+  <label for="username">Username</label>
+  <input id="username" name="username" type="text" required autocomplete="username">
+
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" required autocomplete="email">
+
+  <label for="password">Password <small>(min 8 characters)</small></label>
+  <input id="password" name="password" type="password" required autocomplete="new-password" minlength="8">
+
+  <label>
+    <input type="checkbox" name="age_confirmed" required>
+    I confirm I am 13 years of age or older.
+  </label>
+
+  <button type="submit">Create Account</button>
+</form>
+
+<p>Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+{% endblock %}
