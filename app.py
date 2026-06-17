@@ -131,7 +131,7 @@ def register():
 
 @app.route("/")
 def index():
-    return redirect(url_for("login"))
+    return "OK", 200
 
 
 # ---------------------------------------------------------------------------
