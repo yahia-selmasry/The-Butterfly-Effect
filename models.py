@@ -157,6 +157,36 @@ def get_team_fastest_per_level():
         conn.close()
 
 
+def upsert_level_score(user_id: str, level_number: int, time_ms: int, loops_used: int):
+    """Insert or update level_scores, keeping only the personal best (lowest time_ms)."""
+    conn = get_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO level_scores (user_id, level_number, best_time_ms, loops_used)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (user_id, level_number)
+                    DO UPDATE SET
+                        best_time_ms = LEAST(level_scores.best_time_ms, EXCLUDED.best_time_ms),
+                        loops_used   = CASE
+                            WHEN EXCLUDED.best_time_ms < level_scores.best_time_ms
+                            THEN EXCLUDED.loops_used
+                            ELSE level_scores.loops_used
+                        END,
+                        completed_at = CASE
+                            WHEN EXCLUDED.best_time_ms < level_scores.best_time_ms
+                            THEN NOW()
+                            ELSE level_scores.completed_at
+                        END
+                    """,
+                    (user_id, level_number, time_ms, loops_used),
+                )
+    finally:
+        conn.close()
+
+
 def get_player_all_loop_comparisons(user_id: str):
     """Return every level score for a player, pre-split into early/late buckets.
 

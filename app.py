@@ -27,6 +27,7 @@ from models import (
     get_player_scores,
     get_player_scores_for_level,
     get_team_fastest_per_level,
+    upsert_level_score,
 )
 
 app = Flask(__name__)
@@ -74,7 +75,7 @@ def login():
 
         login_user(user)
         next_page = request.args.get("next")
-        return redirect(next_page or url_for("player_dashboard", user_id=user.user_id))
+        return redirect(next_page or url_for("play"))
 
     return render_template("login.html")
 
@@ -132,8 +133,34 @@ def register():
 @app.route("/")
 def index():
     if current_user.is_authenticated:
-        return redirect(url_for("player_dashboard", user_id=current_user.user_id))
+        return redirect(url_for("play"))
     return redirect(url_for("login"))
+
+
+@app.route("/play")
+def play():
+    return render_template("game.html")
+
+
+@app.route("/api/score", methods=["POST"])
+def submit_score():
+    if not current_user.is_authenticated:
+        return jsonify({"data": None, "error": None}), 200  # guests silently ignored
+
+    data = request.get_json(silent=True) or {}
+    level_number = data.get("level_number")
+    time_ms = data.get("time_ms")
+    loops_used = data.get("loops_used")
+
+    if not isinstance(level_number, int) or level_number not in LEVELS:
+        return jsonify({"data": None, "error": "invalid level_number"}), 400
+    if not isinstance(time_ms, int) or time_ms <= 0:
+        return jsonify({"data": None, "error": "invalid time_ms"}), 400
+    if not isinstance(loops_used, int) or loops_used not in range(1, 6):
+        return jsonify({"data": None, "error": "invalid loops_used"}), 400
+
+    upsert_level_score(current_user.user_id, level_number, time_ms, loops_used)
+    return jsonify({"data": {"saved": True}, "error": None}), 200
 
 
 # ---------------------------------------------------------------------------

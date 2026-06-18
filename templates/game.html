@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Level 1 — The Butterfly Effect</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<div id="hud">
+  <div id="loop-counter">LOOP 1 / 5</div>
+  <div id="timer"></div>
+  <div id="crosshair"></div>
+  <div id="interact-prompt"></div>
+  <div id="hint"></div>
+  <div id="minimap"></div>
+  <div id="controls-hint">
+    WASD — move<br>
+    Mouse — look<br>
+    E — interact<br>
+    Click to lock mouse
+  </div>
+</div>
+
+<div id="overlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="{{ url_for('static', filename='js/game.js') }}"></script>
+
+</body>
+</html>
