@@ -38,6 +38,8 @@ def get_connection():
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL environment variable is not set")
+    if "sslmode" not in database_url:
+        database_url += "?sslmode=require"
     return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
 
 
