@@ -131,7 +131,9 @@ def register():
 
 @app.route("/")
 def index():
-    return "OK", 200
+    if current_user.is_authenticated:
+        return redirect(url_for("player_dashboard", user_id=current_user.user_id))
+    return redirect(url_for("login"))
 
 
 # ---------------------------------------------------------------------------
