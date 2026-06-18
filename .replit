@@ -1,6 +1,5 @@
 run = "sh start.sh"
 entrypoint = "app.py"
-modules = ["python-3.11:v25-20240222-a83e5b9"]
 
 [nix]
 channel = "stable-24_05"
