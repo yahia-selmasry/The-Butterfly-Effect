@@ -132,6 +132,30 @@ def register():
 
 
 # ---------------------------------------------------------------------------
+# Debug route — remove after fixing schema
+# ---------------------------------------------------------------------------
+
+@app.route("/debug/schema")
+def debug_schema():
+    from database import get_connection
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT table_name, column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                ORDER BY table_name, ordinal_position
+            """)
+            rows = cur.fetchall()
+        return jsonify({"data": [dict(r) for r in rows], "error": None})
+    except Exception as e:
+        return jsonify({"data": None, "error": str(e)})
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Public routes
 # ---------------------------------------------------------------------------
 
