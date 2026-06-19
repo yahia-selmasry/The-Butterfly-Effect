@@ -66,8 +66,13 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        user = load_user_by_username(username)
-        stored_hash = get_password_hash(username) if user else None
+        try:
+            user = load_user_by_username(username)
+            stored_hash = get_password_hash(username) if user else None
+        except Exception as e:
+            app.logger.error("DB error on login: %s", e)
+            flash(f"Database error: {e}", "error")
+            return render_template("login.html"), 500
 
         if user is None or stored_hash is None or not check_password_hash(stored_hash, password):
             flash("Invalid username or password.", "error")
