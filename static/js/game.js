@@ -7,19 +7,20 @@ const GHOST_COLORS = [0x4488ff, 0xff8844, 0x44ff88, 0xff44aa];
 // ─── State ───────────────────────────────────────────────────────────────────
 let scene, camera, renderer, clock;
 let levelConfig = null;
-let playerBody, playerVelocity;
+let playerBody;
 let keys = {};
 let yaw = 0, pitch = 0;
 let isPointerLocked = false;
 
 let loopNumber = 1;
 let loopStartTime = 0;
-let ghostRecordings = [];   // array of completed loop recordings
-let currentRecording = [];  // actions recorded this loop
-let ghosts = [];            // live ghost meshes + playback state
-let levelObjects = {};      // id → { mesh, state }
+let ghostRecordings = [];
+let currentRecording = [];
+let ghosts = [];
+let levelObjects = {};
 let levelComplete = false;
 let levelFailed = false;
+let gameStarted = false;
 
 let minimapCanvas, minimapCtx;
 let interactTarget = null;
@@ -31,6 +32,7 @@ async function boot() {
   buildLevel();
   setupInput();
   setupMinimap();
+  gameStarted = true;
   startLoop();
   renderer.setAnimationLoop(tick);
 }
@@ -38,28 +40,52 @@ async function boot() {
 // ─── Three.js init ────────────────────────────────────────────────────────────
 function initThree() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a1a2e);
-  scene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
+  scene.background = new THREE.Color(0x0d0d1a);
+  scene.fog = new THREE.Fog(0x0d0d1a, 18, 45);
 
   camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 100);
 
-  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+  renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('game-canvas'),
+    antialias: true
+  });
   renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   clock = new THREE.Clock();
 
-  // Lighting
-  scene.add(new THREE.AmbientLight(0x404060, 0.6));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(5, 10, 5);
-  dirLight.castShadow = true;
-  scene.add(dirLight);
+  // Ambient — bright enough to see walls clearly
+  scene.add(new THREE.AmbientLight(0x6688aa, 1.2));
 
-  // Point lights for atmosphere
-  const p1 = new THREE.PointLight(0x4444ff, 0.5, 12);
-  p1.position.set(-5, 3, -4);
-  scene.add(p1);
+  // Main overhead light
+  const overhead = new THREE.DirectionalLight(0xffffff, 1.5);
+  overhead.position.set(0, 8, 0);
+  overhead.castShadow = true;
+  overhead.shadow.mapSize.set(1024, 1024);
+  overhead.shadow.camera.near = 0.1;
+  overhead.shadow.camera.far = 30;
+  overhead.shadow.camera.left = -12;
+  overhead.shadow.camera.right = 12;
+  overhead.shadow.camera.top = 12;
+  overhead.shadow.camera.bottom = -12;
+  scene.add(overhead);
+
+  // Blue accent lights on back wall near vault door
+  const vaultLight = new THREE.PointLight(0x4466ff, 2.5, 10);
+  vaultLight.position.set(0, 3, -7);
+  scene.add(vaultLight);
+
+  // Warm fill light on player side
+  const fillLight = new THREE.PointLight(0xffaa44, 1.2, 14);
+  fillLight.position.set(0, 3, 7);
+  scene.add(fillLight);
+
+  // Lever area light
+  const leverLight = new THREE.PointLight(0xffee88, 1.5, 6);
+  leverLight.position.set(-5, 3, -4);
+  scene.add(leverLight);
 
   window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -72,44 +98,49 @@ function initThree() {
 function buildLevel() {
   const [w, h, d] = levelConfig.vault_size;
 
-  const floorMat = new THREE.MeshLambertMaterial({ color: 0x222233 });
-  const wallMat  = new THREE.MeshLambertMaterial({ color: 0x2a2a4a });
-
-  // Floor
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
+  // Floor — checkered tiles
+  const floorGeo = new THREE.PlaneGeometry(w, d, w, d);
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x1a1a30 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
 
+  // Floor grid lines for depth perception
+  const gridHelper = new THREE.GridHelper(w, w, 0x334466, 0x223355);
+  gridHelper.position.y = 0.01;
+  scene.add(gridHelper);
+
   // Ceiling
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({ color: 0x111122 }));
+  const ceilMat = new THREE.MeshLambertMaterial({ color: 0x0d0d1f });
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilMat);
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = h;
   scene.add(ceiling);
 
-  // Walls
-  const walls = [
-    { pos: [0, h/2, -d/2], rot: [0, 0, 0],        size: [w, h] },
-    { pos: [0, h/2,  d/2], rot: [0, Math.PI, 0],   size: [w, h] },
-    { pos: [-w/2, h/2, 0], rot: [0,  Math.PI/2, 0], size: [d, h] },
-    { pos: [ w/2, h/2, 0], rot: [0, -Math.PI/2, 0], size: [d, h] },
+  // Walls with a slightly different color per side for orientation
+  const wallDefs = [
+    { pos: [0, h/2, -d/2], rot: [0, 0, 0],           size: [w, h], color: 0x1e2040 }, // back
+    { pos: [0, h/2,  d/2], rot: [0, Math.PI, 0],      size: [w, h], color: 0x1a1c38 }, // front
+    { pos: [-w/2, h/2, 0], rot: [0,  Math.PI/2, 0],   size: [d, h], color: 0x181b35 }, // left
+    { pos: [ w/2, h/2, 0], rot: [0, -Math.PI/2, 0],   size: [d, h], color: 0x181b35 }, // right
   ];
-  for (const { pos, rot, size } of walls) {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(...size), wallMat);
+  for (const { pos, rot, size, color } of wallDefs) {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(...size),
+      new THREE.MeshLambertMaterial({ color })
+    );
     mesh.position.set(...pos);
     mesh.rotation.set(...rot);
+    mesh.receiveShadow = true;
     scene.add(mesh);
   }
 
-  // Vault door (glowing gold target)
-  const vd = levelConfig.vault_door;
-  const vaultDoor = new THREE.Mesh(
-    new THREE.BoxGeometry(...vd.size),
-    new THREE.MeshLambertMaterial({ color: 0xddaa00, emissive: 0x443300 })
-  );
-  vaultDoor.position.set(...vd.position);
-  vaultDoor.userData.isVaultDoor = true;
-  scene.add(vaultDoor);
+  // Wall trim strips (glowing edge lines)
+  addWallTrim(w, h, d);
+
+  // Vault door — glowing gold safe door
+  buildVaultDoor(levelConfig.vault_door, h);
 
   // Level objects
   for (const obj of levelConfig.objects) {
@@ -117,60 +148,168 @@ function buildLevel() {
     if (obj.type === 'gate')  buildGate(obj);
   }
 
-  // Player capsule (invisible, just a position anchor)
+  // Player anchor
   playerBody = new THREE.Object3D();
   playerBody.position.set(...levelConfig.player_start);
   scene.add(playerBody);
-  playerVelocity = new THREE.Vector3();
 
   camera.position.set(0, 1.6, 0);
   playerBody.add(camera);
+}
+
+function addWallTrim(w, h, d) {
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0x334488, emissive: 0x111133 });
+  const trimH = 0.08;
+
+  // Floor-level trim on all 4 walls
+  const trims = [
+    { pos: [0, trimH/2, -d/2 + 0.02], size: [w, trimH, 0.05] },
+    { pos: [0, trimH/2,  d/2 - 0.02], size: [w, trimH, 0.05] },
+    { pos: [-w/2 + 0.02, trimH/2, 0], size: [0.05, trimH, d] },
+    { pos: [ w/2 - 0.02, trimH/2, 0], size: [0.05, trimH, d] },
+  ];
+  for (const { pos, size } of trims) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(...size), trimMat);
+    m.position.set(...pos);
+    scene.add(m);
+  }
+}
+
+function buildVaultDoor(vd, roomHeight) {
+  const group = new THREE.Group();
+  group.position.set(...vd.position);
+
+  // Door frame
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0x8b6914, emissive: 0x3a2800 });
+  const frameThickness = 0.12;
+  const [dw, dh] = [vd.size[0], vd.size[1]];
+
+  // Top bar
+  group.add(makeMesh([dw + frameThickness*2, frameThickness, 0.2], frameMat, [0, dh/2 + frameThickness/2, 0]));
+  // Left bar
+  group.add(makeMesh([frameThickness, dh, 0.2], frameMat, [-dw/2 - frameThickness/2, 0, 0]));
+  // Right bar
+  group.add(makeMesh([frameThickness, dh, 0.2], frameMat, [dw/2 + frameThickness/2, 0, 0]));
+
+  // Door face — gold with circular pattern
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0xddaa00, emissive: 0x442200 });
+  const door = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, 0.15), doorMat);
+  group.add(door);
+
+  // Door wheel handle
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0xcc9900, emissive: 0x331100 });
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.06, 8, 24), wheelMat);
+  wheel.position.z = 0.15;
+  group.add(wheel);
+
+  // Spokes
+  for (let i = 0; i < 4; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 0.06), wheelMat);
+    spoke.rotation.z = (i * Math.PI) / 4;
+    spoke.position.z = 0.15;
+    group.add(spoke);
+  }
+
+  // Glow indicator — shows it's the goal
+  const glowLight = new THREE.PointLight(0xffaa00, 1.8, 5);
+  glowLight.position.set(0, 0, 1);
+  group.add(glowLight);
+
+  group.userData.isVaultDoor = true;
+  group.userData.position = vd.position;
+  scene.add(group);
+}
+
+function makeMesh(size, mat, pos) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);
+  if (pos) m.position.set(...pos);
+  return m;
 }
 
 function buildLever(obj) {
   const group = new THREE.Group();
   group.position.set(...obj.position);
 
+  // Base plate
   const base = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 0.1, 0.3),
-    new THREE.MeshLambertMaterial({ color: 0x555566 })
+    new THREE.BoxGeometry(0.5, 0.08, 0.5),
+    new THREE.MeshLambertMaterial({ color: 0x445566 })
   );
+  base.position.y = 0.04;
   group.add(base);
 
-  const handle = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.04, 0.04, 0.6),
-    new THREE.MeshLambertMaterial({ color: 0xff6644 })
+  // Pivot housing
+  const pivot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.12, 12),
+    new THREE.MeshLambertMaterial({ color: 0x556677 })
   );
-  handle.position.set(0, 0.35, 0);
-  handle.rotation.z = 0.4;
+  pivot.position.y = 0.14;
+  group.add(pivot);
+
+  // Handle rod
+  const handle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.05, 0.65, 10),
+    new THREE.MeshLambertMaterial({ color: 0xff5522, emissive: 0x330a00 })
+  );
+  handle.position.set(0, 0.52, 0.12);
+  handle.rotation.z = 0.45;
   handle.name = 'handle';
   group.add(handle);
 
-  // Glow ring to signal interactability
+  // Grip ball
+  const grip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 10, 10),
+    new THREE.MeshLambertMaterial({ color: 0xff3300, emissive: 0x220000 })
+  );
+  grip.position.set(0.19, 0.78, 0.24);
+  grip.name = 'grip';
+  group.add(grip);
+
+  // Interaction ring on floor
   const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(0.25, 0.03, 8, 20),
+    new THREE.TorusGeometry(0.4, 0.03, 6, 24),
     new THREE.MeshLambertMaterial({ color: 0xffdd44, emissive: 0x443300 })
   );
   ring.rotation.x = Math.PI / 2;
-  ring.position.y = 0.05;
+  ring.position.y = 0.01;
+  ring.name = 'ring';
   group.add(ring);
 
-  group.userData = { id: obj.id, type: 'lever', pulled: false, interactRadius: 2 };
+  group.userData = { id: obj.id, type: 'lever', pulled: false, interactRadius: 2.2 };
   scene.add(group);
   levelObjects[obj.id] = { mesh: group, state: { pulled: false } };
 }
 
 function buildGate(obj) {
-  const gate = new THREE.Mesh(
-    new THREE.BoxGeometry(...obj.size),
-    new THREE.MeshLambertMaterial({ color: 0x334455, transparent: true, opacity: 0.85 })
-  );
-  gate.position.set(...obj.position);
-  gate.castShadow = true;
-  gate.userData = { id: obj.id, type: 'gate', open: false };
-  scene.add(gate);
+  const group = new THREE.Group();
+  group.position.set(...obj.position);
+
+  // Gate bars
+  const barMat = new THREE.MeshLambertMaterial({ color: 0x3355aa, emissive: 0x0a1133 });
+  const [gw, gh] = [obj.size[0], obj.size[1]];
+  const barCount = Math.floor(gw / 0.5);
+
+  for (let i = 0; i < barCount; i++) {
+    const x = -gw/2 + 0.35 + i * (gw / barCount);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, gh, 8), barMat);
+    bar.position.set(x, 0, 0);
+    group.add(bar);
+  }
+
+  // Top and bottom crossbars
+  const crossMat = new THREE.MeshLambertMaterial({ color: 0x2244aa, emissive: 0x0a1133 });
+  group.add(makeMesh([gw, 0.1, 0.15], crossMat, [0, gh/2, 0]));
+  group.add(makeMesh([gw, 0.1, 0.15], crossMat, [0, -gh/2 + 0.05, 0]));
+
+  // Blue glow when closed
+  const gateLight = new THREE.PointLight(0x2244ff, 1.0, 4);
+  gateLight.name = 'gateLight';
+  group.add(gateLight);
+
+  group.userData = { id: obj.id, type: 'gate', open: false };
+  scene.add(group);
   levelObjects[obj.id] = {
-    mesh: gate,
+    mesh: group,
     state: { open: false, openUntil: 0 },
     config: obj
   };
@@ -185,7 +324,9 @@ function startLoop() {
   updateLoopHUD();
 
   document.getElementById('hint').textContent =
-    loopNumber === 1 ? levelConfig.hint : `Loop ${loopNumber} — coordinate with your ghost${loopNumber > 2 ? 's' : ''}.`;
+    loopNumber === 1
+      ? (levelConfig.hint || 'Pull the lever to open the gate, then reach the vault door.')
+      : `Loop ${loopNumber} — your ghost replays your last run. Coordinate!`;
 }
 
 function resetLevelObjects() {
@@ -194,14 +335,20 @@ function resetLevelObjects() {
       obj.mesh.visible = true;
       obj.mesh.position.y = obj.config.position[1];
       obj.state.open = false;
+      obj.state.openUntil = 0;
+      const gl = obj.mesh.getObjectByName('gateLight');
+      if (gl) { gl.color.set(0x2244ff); gl.intensity = 1.0; }
     }
     if (obj.mesh.userData.type === 'lever') {
       obj.state.pulled = false;
       const handle = obj.mesh.getObjectByName('handle');
-      if (handle) handle.rotation.z = 0.4;
+      const grip   = obj.mesh.getObjectByName('grip');
+      const ring   = obj.mesh.getObjectByName('ring');
+      if (handle) { handle.rotation.z = 0.45; handle.position.set(0, 0.52, 0.12); }
+      if (grip)   grip.position.set(0.19, 0.78, 0.24);
+      if (ring)   ring.material.emissive.setHex(0x443300);
     }
   }
-  // Reset player
   playerBody.position.set(...levelConfig.player_start);
   yaw = 0; pitch = 0;
   camera.rotation.set(0, 0, 0);
@@ -209,19 +356,22 @@ function resetLevelObjects() {
 }
 
 function spawnGhosts() {
-  // Remove old ghost meshes
   for (const g of ghosts) scene.remove(g.mesh);
   ghosts = [];
 
   for (let i = 0; i < ghostRecordings.length; i++) {
-    const geo = new THREE.CapsuleGeometry(0.3, 1.0, 4, 8);
+    const geo = new THREE.CapsuleGeometry(0.28, 1.0, 4, 8);
+    const col = GHOST_COLORS[i % GHOST_COLORS.length];
     const mat = new THREE.MeshLambertMaterial({
-      color: GHOST_COLORS[i % GHOST_COLORS.length],
+      color: col,
       transparent: true,
-      opacity: 0.45
+      opacity: 0.5,
+      emissive: col,
+      emissiveIntensity: 0.2
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(...levelConfig.player_start);
+    mesh.position.y += 0.8;
     scene.add(mesh);
 
     ghosts.push({
@@ -230,7 +380,7 @@ function spawnGhosts() {
       actionIndex: 0,
       position: new THREE.Vector3(...levelConfig.player_start),
       yaw: 0,
-      loopObjects: {}  // ghost's own view of object states
+      loopObjects: {}
     });
   }
 }
@@ -241,7 +391,7 @@ function tick() {
   const now = performance.now();
   const elapsed = now - loopStartTime;
 
-  if (!levelComplete && !levelFailed) {
+  if (gameStarted && !levelComplete && !levelFailed) {
     movePlayer(dt);
     replayGhosts(now, elapsed);
     updateGates(now);
@@ -256,6 +406,8 @@ function tick() {
 
 // ─── Player movement ──────────────────────────────────────────────────────────
 function movePlayer(dt) {
+  if (!isPointerLocked) return;
+
   const speed = 5;
   const dir = new THREE.Vector3();
 
@@ -296,6 +448,7 @@ function replayGhosts(now, elapsed) {
       ghost.actionIndex++;
     }
     ghost.mesh.position.copy(ghost.position);
+    ghost.mesh.position.y += 0.8;
     ghost.mesh.rotation.y = ghost.yaw;
   }
 }
@@ -319,6 +472,8 @@ function openGate(gateId, loopObjs) {
   obj.state.open = true;
   obj.state.openUntil = performance.now() + duration;
   obj.mesh.visible = false;
+  const gl = obj.mesh.getObjectByName('gateLight');
+  if (gl) { gl.color.set(0x00ff88); gl.intensity = 0; }
   if (loopObjs) loopObjs[gateId] = { open: true };
 }
 
@@ -330,7 +485,7 @@ function checkInteract() {
   for (const [id, obj] of Object.entries(levelObjects)) {
     if (obj.mesh.userData.type !== 'lever') continue;
     const dist = playerPos.distanceTo(obj.mesh.position);
-    if (dist < 2.2) {
+    if (dist < 2.5) {
       interactTarget = id;
       break;
     }
@@ -338,15 +493,17 @@ function checkInteract() {
 
   const prompt = document.getElementById('interact-prompt');
   if (interactTarget) {
+    const pulled = levelObjects[interactTarget].state.pulled;
     prompt.style.display = 'block';
-    prompt.textContent = 'Press E to pull lever';
+    prompt.textContent = pulled ? 'Lever already pulled' : 'Press E to pull lever';
+    prompt.style.color = pulled ? 'rgba(255,255,255,0.4)' : '#ffdd44';
   } else {
     prompt.style.display = 'none';
   }
 }
 
 function interact() {
-  if (!interactTarget) return;
+  if (!interactTarget || !isPointerLocked) return;
   applyInteraction(interactTarget, null);
   recordAction({ type: 'interact', objectId: interactTarget, t: performance.now() - loopStartTime });
 }
@@ -358,9 +515,12 @@ function applyInteraction(objectId, loopObjs) {
 
   obj.state.pulled = true;
   const handle = obj.mesh.getObjectByName('handle');
-  if (handle) handle.rotation.z = -0.4;
+  const grip   = obj.mesh.getObjectByName('grip');
+  const ring   = obj.mesh.getObjectByName('ring');
+  if (handle) { handle.rotation.z = -0.45; handle.position.set(0, 0.52, -0.12); }
+  if (grip)   grip.position.set(-0.19, 0.78, -0.24);
+  if (ring)   ring.material.emissive.setHex(0x885500);
 
-  // Find gates controlled by this lever
   for (const levelObj of levelConfig.objects) {
     if (levelObj.type === 'gate' && levelObj.controlled_by === objectId) {
       openGate(levelObj.id, loopObjs);
@@ -371,9 +531,9 @@ function applyInteraction(objectId, loopObjs) {
 // ─── Win condition ────────────────────────────────────────────────────────────
 function checkWin() {
   const vd = levelConfig.vault_door;
-  const dist = playerBody.position.distanceTo(new THREE.Vector3(...vd.position));
+  const vaultPos = new THREE.Vector3(...vd.position);
+  const dist = playerBody.position.distanceTo(vaultPos);
 
-  // Check that the gate is open (player can reach vault door)
   let gateOpen = false;
   for (const [id, obj] of Object.entries(levelObjects)) {
     if (obj.mesh.userData.type === 'gate' && obj.state.open) {
@@ -393,9 +553,9 @@ function onLevelComplete(totalMs, loopsUsed) {
   exitPointerLock();
 
   const secs = (totalMs / 1000).toFixed(2);
-  showOverlay('vault-open', `
+  showOverlay(`
     <h1>Vault Opened!</h1>
-    <p>Loop ${loopsUsed} of ${MAX_LOOPS}</p>
+    <p>Completed on Loop ${loopsUsed} of ${MAX_LOOPS}</p>
     <div class="big-time">${secs}s</div>
     <p>Total time across all loops</p>
     <button onclick="restartLevel()">Play Again</button>
@@ -408,7 +568,7 @@ function onLevelComplete(totalMs, loopsUsed) {
 function endLoop() {
   const loopDuration = performance.now() - loopStartTime;
   currentRecording.loopDuration = loopDuration;
-  ghostRecordings.push(currentRecording);
+  ghostRecordings.push([...currentRecording]);
 
   if (loopNumber >= MAX_LOOPS) {
     onAllLoopsFailed();
@@ -422,10 +582,10 @@ function endLoop() {
 function onAllLoopsFailed() {
   levelFailed = true;
   exitPointerLock();
-  showOverlay('failed', `
+  showOverlay(`
     <h1>Loop 5 Complete</h1>
     <p>The vault held its secrets this time.</p>
-    <p>Moving on...</p>
+    <p style="margin-top:8px; font-size:14px; color:rgba(255,255,255,0.5)">Better luck next time...</p>
     <button onclick="restartLevel()">Try Again</button>
   `);
 }
@@ -464,33 +624,36 @@ function setupMinimap() {
 }
 
 function drawMinimap() {
+  if (!minimapCtx) return;
   const ctx = minimapCtx;
   const [w, , d] = levelConfig.vault_size;
-  const scale = 150 / Math.max(w, d);
+  const scale = 144 / Math.max(w, d);
 
   ctx.clearRect(0, 0, 150, 150);
-  ctx.fillStyle = 'rgba(0,0,20,0.8)';
+  ctx.fillStyle = 'rgba(5,5,20,0.92)';
   ctx.fillRect(0, 0, 150, 150);
 
-  // Walls
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.strokeRect(2, 2, 146, 146);
+  ctx.strokeStyle = 'rgba(80,120,255,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(3, 3, 144, 144);
 
   function worldToMap(x, z) {
-    return [(x + w/2) * scale, (z + d/2) * scale];
+    return [(x + w/2) * scale + 3, (z + d/2) * scale + 3];
   }
 
   // Gate
   for (const [id, obj] of Object.entries(levelObjects)) {
     if (obj.mesh.userData.type === 'gate') {
       const [mx, mz] = worldToMap(obj.mesh.position.x, obj.mesh.position.z);
-      ctx.fillStyle = obj.state.open ? 'rgba(0,255,100,0.6)' : 'rgba(100,150,255,0.6)';
-      ctx.fillRect(mx - 8, mz - 2, 16, 4);
+      ctx.fillStyle = obj.state.open ? 'rgba(0,255,140,0.7)' : 'rgba(60,120,255,0.7)';
+      ctx.fillRect(mx - 10, mz - 2, 20, 4);
     }
     if (obj.mesh.userData.type === 'lever') {
       const [mx, mz] = worldToMap(obj.mesh.position.x, obj.mesh.position.z);
-      ctx.fillStyle = obj.state.pulled ? '#ff8844' : '#ffdd44';
-      ctx.fillRect(mx - 3, mz - 3, 6, 6);
+      ctx.fillStyle = obj.state.pulled ? '#ff8844' : '#ffee44';
+      ctx.beginPath();
+      ctx.arc(mx, mz, 4, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -498,30 +661,32 @@ function drawMinimap() {
   const vd = levelConfig.vault_door;
   const [vx, vz] = worldToMap(vd.position[0], vd.position[2]);
   ctx.fillStyle = '#ddaa00';
-  ctx.fillRect(vx - 6, vz - 3, 12, 6);
+  ctx.fillRect(vx - 7, vz - 3, 14, 6);
 
-  // Ghosts
+  // Ghost trails
   for (let i = 0; i < ghosts.length; i++) {
     const [gx, gz] = worldToMap(ghosts[i].position.x, ghosts[i].position.z);
-    ctx.fillStyle = `#${GHOST_COLORS[i].toString(16).padStart(6, '0')}`;
+    const hex = GHOST_COLORS[i].toString(16).padStart(6, '0');
+    ctx.fillStyle = `#${hex}`;
+    ctx.globalAlpha = 0.7;
     ctx.beginPath();
     ctx.arc(gx, gz, 4, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
-  // Player
+  // Player dot + direction
   const [px, pz] = worldToMap(playerBody.position.x, playerBody.position.z);
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.arc(px, pz, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Player direction indicator
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(px, pz);
-  ctx.lineTo(px + Math.sin(yaw) * -10, pz + Math.cos(yaw) * -10);
+  ctx.lineTo(px + Math.sin(yaw) * -12, pz + Math.cos(yaw) * -12);
   ctx.stroke();
 }
 
@@ -533,9 +698,7 @@ async function submitScore(totalMs, loopsUsed) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ level_number: 1, time_ms: Math.round(totalMs), loops_used: loopsUsed })
     });
-  } catch (e) {
-    // Guest or network error — silently ignore
-  }
+  } catch (e) { /* guest or offline — ignore */ }
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────
@@ -548,7 +711,7 @@ function setupInput() {
   document.addEventListener('keyup', e => { keys[e.code] = false; });
 
   document.getElementById('game-canvas').addEventListener('click', () => {
-    if (!levelComplete && !levelFailed) requestPointerLock();
+    if (gameStarted && !levelComplete && !levelFailed) requestPointerLock();
   });
 
   document.addEventListener('pointerlockchange', () => {
@@ -559,7 +722,7 @@ function setupInput() {
     if (!isPointerLocked) return;
     yaw   -= e.movementX * 0.002;
     pitch -= e.movementY * 0.002;
-    pitch  = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+    pitch  = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
   });
 }
 
@@ -573,7 +736,7 @@ function exitPointerLock() {
 }
 
 // ─── Overlay ──────────────────────────────────────────────────────────────────
-function showOverlay(type, html) {
+function showOverlay(html) {
   const overlay = document.getElementById('overlay');
   overlay.innerHTML = html;
   overlay.style.display = 'flex';
@@ -588,32 +751,30 @@ function restartLevel() {
   loopNumber = 1;
   ghostRecordings = [];
   currentRecording = [];
+  for (const g of ghosts) scene.remove(g.mesh);
   ghosts = [];
   levelComplete = false;
   levelFailed = false;
-
-  // Remove ghost meshes
-  for (const g of ghosts) scene.remove(g.mesh);
-
   hideOverlay();
   startLoop();
   requestPointerLock();
 }
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+// ─── Global exports ───────────────────────────────────────────────────────────
 window.restartLevel = restartLevel;
-
-// Show start overlay
-document.getElementById('overlay').innerHTML = `
-  <h1>The Butterfly Effect</h1>
-  <p>Level 1 — The First Door</p>
-  <p style="margin-top:8px; font-size:14px; color:rgba(255,255,255,0.5)">
-    WASD to move &nbsp;·&nbsp; Mouse to look &nbsp;·&nbsp; E to interact
-  </p>
-  <button onclick="hideOverlay(); requestPointerLock(); boot();">Play</button>
-`;
-document.getElementById('overlay').style.display = 'flex';
-
 window.hideOverlay = hideOverlay;
 window.requestPointerLock = requestPointerLock;
 window.boot = boot;
+
+// ─── Start screen ─────────────────────────────────────────────────────────────
+showOverlay(`
+  <h1>The Butterfly Effect</h1>
+  <p>Level 1 — The First Door</p>
+  <p style="margin-top:4px; font-size:15px; color:rgba(255,255,255,0.6)">
+    Pull the lever to open the gate.<br>Reach the vault door before time runs out.
+  </p>
+  <p style="margin-top:8px; font-size:13px; color:rgba(255,255,255,0.35)">
+    WASD — move &nbsp;·&nbsp; Mouse — look &nbsp;·&nbsp; E — interact
+  </p>
+  <button onclick="hideOverlay(); boot().then(() => requestPointerLock());">Play</button>
+`);
