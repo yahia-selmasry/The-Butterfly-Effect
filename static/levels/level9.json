@@ -1,0 +1,19 @@
+{
+  "level_number": 9,
+  "name": "Four Corners",
+  "vault_size": [26, 6, 26],
+  "player_start": [0, 0.5, 11],
+  "vault_door": { "position": [0, 1.5, -11], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [-10, 0.5,  10], "label": "NW lever" },
+    { "id": "lever2", "type": "lever", "position": [ 10, 0.5,  10], "label": "NE lever" },
+    { "id": "lever3", "type": "lever", "position": [-10, 0.5, -10], "label": "SW lever" },
+    { "id": "lever4", "type": "lever", "position": [ 10, 0.5, -10], "label": "SE lever" },
+    { "id": "gate1",  "type": "gate",  "position": [-5, 1.5, 3],   "size": [3, 3, 0.3], "controlled_by": "lever1", "open_duration": 6000 },
+    { "id": "gate2",  "type": "gate",  "position": [ 5, 1.5, 3],   "size": [3, 3, 0.3], "controlled_by": "lever2", "open_duration": 6000 },
+    { "id": "gate3",  "type": "gate",  "position": [-5, 1.5, -5],  "size": [3, 3, 0.3], "controlled_by": "lever3", "open_duration": 5000 },
+    { "id": "gate4",  "type": "gate",  "position": [ 5, 1.5, -5],  "size": [3, 3, 0.3], "controlled_by": "lever4", "open_duration": 5000 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open"] },
+  "hint": "Four levers in four corners. You need four loops — one task per loop."
+}

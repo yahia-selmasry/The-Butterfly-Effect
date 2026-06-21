@@ -2,6 +2,7 @@
 const LOOP_DURATION_MS = 60000;
 const TIMER_SHOW_AT_MS = 50000;
 const MAX_LOOPS = 5;
+const MAX_LEVELS = 20;
 const GHOST_COLORS = [0x4488ff, 0xff8844, 0x44ff88, 0xff44aa];
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -12,6 +13,7 @@ let keys = {};
 let yaw = 0, pitch = 0;
 let isPointerLocked = false;
 
+let currentLevelNumber = 1;
 let loopNumber = 1;
 let loopStartTime = 0;
 let ghostRecordings = [];
@@ -26,15 +28,40 @@ let minimapCanvas, minimapCtx;
 let interactTarget = null;
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-async function boot() {
-  levelConfig = await fetch('/static/levels/level1.json').then(r => r.json());
-  initThree();
+async function boot(levelNum) {
+  currentLevelNumber = levelNum || 1;
+  levelConfig = await fetch('/static/levels/level' + currentLevelNumber + '.json').then(r => r.json());
+  if (!scene) {
+    initThree();
+    setupInput();
+    setupMinimap();
+    renderer.setAnimationLoop(tick);
+  } else {
+    // Clear old scene objects for level transition
+    while (scene.children.length > 0) scene.remove(scene.children[0]);
+    // Re-add lights
+    scene.add(new THREE.AmbientLight(0x6688aa, 1.2));
+    const overhead = new THREE.DirectionalLight(0xffffff, 1.5);
+    overhead.position.set(0, 8, 0);
+    overhead.castShadow = true;
+    scene.add(overhead);
+    const vaultLight = new THREE.PointLight(0x4466ff, 2.5, 10);
+    vaultLight.position.set(0, 3, -7);
+    scene.add(vaultLight);
+    const fillLight = new THREE.PointLight(0xffaa44, 1.2, 14);
+    fillLight.position.set(0, 3, 7);
+    scene.add(fillLight);
+    levelObjects = {};
+    ghosts = [];
+  }
   buildLevel();
-  setupInput();
-  setupMinimap();
+  loopNumber = 1;
+  ghostRecordings = [];
+  currentRecording = [];
+  levelComplete = false;
+  levelFailed = false;
   gameStarted = true;
   startLoop();
-  renderer.setAnimationLoop(tick);
 }
 
 // ─── Three.js init ────────────────────────────────────────────────────────────
@@ -553,12 +580,18 @@ function onLevelComplete(totalMs, loopsUsed) {
   exitPointerLock();
 
   const secs = (totalMs / 1000).toFixed(2);
+  const isLast = currentLevelNumber >= MAX_LEVELS;
+  const nextBtn = isLast
+    ? '<button onclick="restartLevel()">Play Again</button>'
+    : '<button onclick="nextLevel()">Next Level</button><button onclick="restartLevel()" style="margin-left:12px;background:#555;color:#fff">Replay</button>';
+
   showOverlay(`
     <h1>Vault Opened!</h1>
+    <p>Level ${currentLevelNumber} — ${levelConfig.name}</p>
     <p>Completed on Loop ${loopsUsed} of ${MAX_LOOPS}</p>
     <div class="big-time">${secs}s</div>
-    <p>Total time across all loops</p>
-    <button onclick="restartLevel()">Play Again</button>
+    ${isLast ? '<p style="color:#ffdd44">You beat all 20 levels!</p>' : ''}
+    ${nextBtn}
   `);
 
   submitScore(totalMs, loopsUsed);
@@ -582,11 +615,15 @@ function endLoop() {
 function onAllLoopsFailed() {
   levelFailed = true;
   exitPointerLock();
+  const isLast = currentLevelNumber >= MAX_LEVELS;
+  const nextBtn = isLast
+    ? '<button onclick="restartLevel()">Try Again</button>'
+    : '<button onclick="nextLevel()">Next Level</button><button onclick="restartLevel()" style="margin-left:12px;background:#555;color:#fff">Try Again</button>';
   showOverlay(`
     <h1>Loop 5 Complete</h1>
-    <p>The vault held its secrets this time.</p>
-    <p style="margin-top:8px; font-size:14px; color:rgba(255,255,255,0.5)">Better luck next time...</p>
-    <button onclick="restartLevel()">Try Again</button>
+    <p>Level ${currentLevelNumber} — ${levelConfig.name}</p>
+    <p style="margin-top:8px;font-size:14px;color:rgba(255,255,255,0.5)">The vault held its secrets this time.</p>
+    ${nextBtn}
   `);
 }
 
@@ -597,7 +634,8 @@ function recordAction(action) {
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
 function updateLoopHUD() {
-  document.getElementById('loop-counter').textContent = `LOOP ${loopNumber} / ${MAX_LOOPS}`;
+  document.getElementById('loop-counter').textContent =
+    `LVL ${currentLevelNumber}  ·  LOOP ${loopNumber} / ${MAX_LOOPS}`;
 }
 
 function updateHUD(elapsed) {
@@ -746,22 +784,21 @@ function hideOverlay() {
   document.getElementById('overlay').style.display = 'none';
 }
 
-// ─── Restart ──────────────────────────────────────────────────────────────────
+// ─── Restart / Next ───────────────────────────────────────────────────────────
 function restartLevel() {
-  loopNumber = 1;
-  ghostRecordings = [];
-  currentRecording = [];
-  for (const g of ghosts) scene.remove(g.mesh);
-  ghosts = [];
-  levelComplete = false;
-  levelFailed = false;
   hideOverlay();
-  startLoop();
-  requestPointerLock();
+  boot(currentLevelNumber).then(() => requestPointerLock());
+}
+
+function nextLevel() {
+  const next = currentLevelNumber < MAX_LEVELS ? currentLevelNumber + 1 : 1;
+  hideOverlay();
+  boot(next).then(() => requestPointerLock());
 }
 
 // ─── Global exports ───────────────────────────────────────────────────────────
 window.restartLevel = restartLevel;
+window.nextLevel = nextLevel;
 window.hideOverlay = hideOverlay;
 window.requestPointerLock = requestPointerLock;
 window.boot = boot;
@@ -769,12 +806,13 @@ window.boot = boot;
 // ─── Start screen ─────────────────────────────────────────────────────────────
 showOverlay(`
   <h1>The Butterfly Effect</h1>
-  <p>Level 1 — The First Door</p>
-  <p style="margin-top:4px; font-size:15px; color:rgba(255,255,255,0.6)">
-    Pull the lever to open the gate.<br>Reach the vault door before time runs out.
+  <p>20 Levels &nbsp;·&nbsp; 5 Loops Each</p>
+  <p style="margin-top:8px;font-size:15px;color:rgba(255,255,255,0.6)">
+    Pull levers to open gates.<br>Reach the vault door before time runs out.<br>
+    Each loop, your past self replays beside you.
   </p>
-  <p style="margin-top:8px; font-size:13px; color:rgba(255,255,255,0.35)">
+  <p style="margin-top:10px;font-size:13px;color:rgba(255,255,255,0.3)">
     WASD — move &nbsp;·&nbsp; Mouse — look &nbsp;·&nbsp; E — interact
   </p>
-  <button onclick="hideOverlay(); boot().then(() => requestPointerLock());">Play</button>
+  <button onclick="hideOverlay(); boot(1).then(() => requestPointerLock());">Play Level 1</button>
 `);

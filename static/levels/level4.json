@@ -1,0 +1,13 @@
+{
+  "level_number": 4,
+  "name": "The Far Side",
+  "vault_size": [24, 6, 24],
+  "player_start": [0, 0.5, 10],
+  "vault_door": { "position": [0, 1.5, -10], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [-9, 0.5, -8],  "label": "Far lever" },
+    { "id": "gate1",  "type": "gate",  "position": [0, 1.5, -4],  "size": [5, 3, 0.3], "controlled_by": "lever1", "open_duration": 5000 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open"] },
+  "hint": "The lever is far from the gate. Your ghost needs to hold it while you run."
+}

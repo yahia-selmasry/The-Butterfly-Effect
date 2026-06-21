@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Level 1 — The Butterfly Effect</title>
+  <title>The Butterfly Effect</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
 </head>
 <body>
@@ -26,7 +26,7 @@
 </div>
 
 <div id="overlay">
-  <p style="color:rgba(255,255,255,0.4); font-size:14px;">Loading...</p>
+  <p style="color:rgba(255,255,255,0.4);font-size:14px;">Loading...</p>
 </div>
 
 <script>
@@ -36,38 +36,15 @@
     o.innerHTML = '<h1 style="color:#ff4444">Error</h1>' +
       '<p style="font-size:13px;max-width:80%;word-break:break-all;text-align:center">' +
       (e.message || 'Unknown error') + '<br><small style="opacity:0.5">' +
-      (e.filename ? e.filename.split('/').pop() : '') + ':' + e.lineno +
-      '</small></p>';
+      (e.filename ? e.filename.split('/').pop() : '') + ':' + e.lineno + '</small></p>';
   });
 </script>
 
-<!-- Three.js with unpkg fallback -->
-<script>
-(function() {
-  var s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
-  s.onerror = function() {
-    // CDN failed — try unpkg fallback
-    var s2 = document.createElement('script');
-    s2.src = 'https://unpkg.com/three@0.160.0/build/three.min.js';
-    s2.onerror = function() {
-      document.getElementById('overlay').innerHTML =
-        '<h1 style="color:#ff4444">Failed to load Three.js</h1>' +
-        '<p>Check your internet connection and reload.</p>';
-    };
-    s2.onload = loadGame;
-    document.head.appendChild(s2);
-  };
-  s.onload = loadGame;
-  document.head.appendChild(s);
-
-  function loadGame() {
-    var g = document.createElement('script');
-    g.src = '{{ url_for("static", filename="js/game.js") }}';
-    document.body.appendChild(g);
-  }
-})();
+<!-- Three.js must fully load before game.js runs -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"
+        onerror="this.onerror=null;this.src='https://unpkg.com/three@0.160.0/build/three.min.js'">
 </script>
+<script src="{{ url_for('static', filename='js/game.js') }}"></script>
 
 </body>
 </html>

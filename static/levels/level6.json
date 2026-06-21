@@ -1,0 +1,13 @@
+{
+  "level_number": 6,
+  "name": "Narrow Window",
+  "vault_size": [20, 6, 24],
+  "player_start": [0, 0.5, 10],
+  "vault_door": { "position": [0, 1.5, -10], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [8, 0.5, 5],   "label": "Lever" },
+    { "id": "gate1",  "type": "gate",  "position": [0, 1.5, -3], "size": [6, 3, 0.3], "controlled_by": "lever1", "open_duration": 3500 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open"] },
+  "hint": "3.5 seconds. The gate is wide and you start far. Time it perfectly."
+}

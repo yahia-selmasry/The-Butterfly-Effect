@@ -1,0 +1,13 @@
+{
+  "level_number": 3,
+  "name": "Quick Fingers",
+  "vault_size": [20, 6, 22],
+  "player_start": [0, 0.5, 9],
+  "vault_door": { "position": [0, 1.5, -9], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [0, 0.5, 2],   "label": "Pull fast" },
+    { "id": "gate1",  "type": "gate",  "position": [0, 1.5, -2], "size": [5, 3, 0.3], "controlled_by": "lever1", "open_duration": 4000 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open"] },
+  "hint": "The gate only stays open 4 seconds. Pull and sprint."
+}

@@ -1,0 +1,15 @@
+{
+  "level_number": 2,
+  "name": "Two Doors",
+  "vault_size": [22, 6, 22],
+  "player_start": [0, 0.5, 9],
+  "vault_door": { "position": [0, 1.5, -9], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [-6, 0.5, 0],  "label": "Left lever" },
+    { "id": "lever2", "type": "lever", "position": [ 6, 0.5, 0],  "label": "Right lever" },
+    { "id": "gate1",  "type": "gate",  "position": [-3, 1.5, -3], "size": [4, 3, 0.3], "controlled_by": "lever1", "open_duration": 6000 },
+    { "id": "gate2",  "type": "gate",  "position": [ 3, 1.5, -6], "size": [4, 3, 0.3], "controlled_by": "lever2", "open_duration": 6000 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open", "gate2_open"] },
+  "hint": "Two levers, two gates. One player can't pull both in time — use your ghost."
+}

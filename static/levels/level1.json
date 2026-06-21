@@ -5,24 +5,9 @@
   "player_start": [0, 0.5, 8],
   "vault_door": { "position": [0, 1.5, -8], "size": [2, 3, 0.3] },
   "objects": [
-    {
-      "id": "lever1",
-      "type": "lever",
-      "position": [-5, 0.5, -4],
-      "label": "Pull to open gate"
-    },
-    {
-      "id": "gate1",
-      "type": "gate",
-      "position": [0, 1.5, -2],
-      "size": [4, 3, 0.3],
-      "controlled_by": "lever1",
-      "open_duration": 8000
-    }
+    { "id": "lever1", "type": "lever", "position": [-5, 0.5, -4], "label": "Pull to open gate" },
+    { "id": "gate1",  "type": "gate",  "position": [0, 1.5, -2], "size": [4, 3, 0.3], "controlled_by": "lever1", "open_duration": 8000 }
   ],
-  "win_condition": {
-    "type": "reach_vault_door",
-    "requires": ["gate1_open"]
-  },
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open"] },
   "hint": "Pull the lever to open the gate, then run through before it closes."
 }

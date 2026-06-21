@@ -1,0 +1,23 @@
+{
+  "level_number": 16,
+  "name": "Mirror Image",
+  "vault_size": [30, 6, 30],
+  "player_start": [0, 0.5, 13],
+  "vault_door": { "position": [0, 1.5, -13], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [-12, 0.5,  9], "label": "L1" },
+    { "id": "lever2", "type": "lever", "position": [ 12, 0.5,  9], "label": "R1" },
+    { "id": "lever3", "type": "lever", "position": [-12, 0.5,  3], "label": "L2" },
+    { "id": "lever4", "type": "lever", "position": [ 12, 0.5,  3], "label": "R2" },
+    { "id": "lever5", "type": "lever", "position": [-12, 0.5, -5], "label": "L3" },
+    { "id": "lever6", "type": "lever", "position": [ 12, 0.5, -5], "label": "R3 (you)" },
+    { "id": "gate1",  "type": "gate",  "position": [-6, 1.5,  6],  "size": [3, 3, 0.3], "controlled_by": "lever1", "open_duration": 5000 },
+    { "id": "gate2",  "type": "gate",  "position": [ 6, 1.5,  6],  "size": [3, 3, 0.3], "controlled_by": "lever2", "open_duration": 5000 },
+    { "id": "gate3",  "type": "gate",  "position": [-6, 1.5,  0],  "size": [3, 3, 0.3], "controlled_by": "lever3", "open_duration": 4000 },
+    { "id": "gate4",  "type": "gate",  "position": [ 6, 1.5,  0],  "size": [3, 3, 0.3], "controlled_by": "lever4", "open_duration": 4000 },
+    { "id": "gate5",  "type": "gate",  "position": [-6, 1.5, -7],  "size": [3, 3, 0.3], "controlled_by": "lever5", "open_duration": 3000 },
+    { "id": "gate6",  "type": "gate",  "position": [ 6, 1.5, -7],  "size": [3, 3, 0.3], "controlled_by": "lever6", "open_duration": 3000 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open","gate5_open","gate6_open"] },
+  "hint": "Perfect symmetry. Loop 1 left, loop 2 right — mirrors all the way down."
+}

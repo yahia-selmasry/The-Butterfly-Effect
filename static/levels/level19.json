@@ -1,0 +1,27 @@
+{
+  "level_number": 19,
+  "name": "The Final Test",
+  "vault_size": [30, 6, 30],
+  "player_start": [0, 0.5, 13],
+  "vault_door": { "position": [0, 1.5, -13], "size": [2, 3, 0.3] },
+  "objects": [
+    { "id": "lever1", "type": "lever", "position": [-12, 0.5, 11], "label": "1" },
+    { "id": "lever2", "type": "lever", "position": [ 12, 0.5, 11], "label": "2" },
+    { "id": "lever3", "type": "lever", "position": [-12, 0.5,  4], "label": "3" },
+    { "id": "lever4", "type": "lever", "position": [ 12, 0.5,  4], "label": "4" },
+    { "id": "lever5", "type": "lever", "position": [-12, 0.5, -4], "label": "5" },
+    { "id": "lever6", "type": "lever", "position": [ 12, 0.5, -4], "label": "6" },
+    { "id": "lever7", "type": "lever", "position": [-12, 0.5,-11], "label": "7" },
+    { "id": "lever8", "type": "lever", "position": [ 12, 0.5,-11], "label": "8" },
+    { "id": "gate1",  "type": "gate",  "position": [ 0, 1.5,  8],  "size": [7, 3, 0.3], "controlled_by": "lever1", "open_duration": 4000 },
+    { "id": "gate2",  "type": "gate",  "position": [ 0, 1.5,  5],  "size": [7, 3, 0.3], "controlled_by": "lever2", "open_duration": 4000 },
+    { "id": "gate3",  "type": "gate",  "position": [ 0, 1.5,  1],  "size": [7, 3, 0.3], "controlled_by": "lever3", "open_duration": 3500 },
+    { "id": "gate4",  "type": "gate",  "position": [ 0, 1.5, -2],  "size": [7, 3, 0.3], "controlled_by": "lever4", "open_duration": 3500 },
+    { "id": "gate5",  "type": "gate",  "position": [ 0, 1.5, -5],  "size": [7, 3, 0.3], "controlled_by": "lever5", "open_duration": 3000 },
+    { "id": "gate6",  "type": "gate",  "position": [ 0, 1.5, -8],  "size": [7, 3, 0.3], "controlled_by": "lever6", "open_duration": 3000 },
+    { "id": "gate7",  "type": "gate",  "position": [ 0, 1.5,-11],  "size": [7, 3, 0.3], "controlled_by": "lever7", "open_duration": 2500 },
+    { "id": "gate8",  "type": "gate",  "position": [ 0, 1.5,-12],  "size": [7, 3, 0.3], "controlled_by": "lever8", "open_duration": 2500 }
+  ],
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open","gate5_open","gate6_open","gate7_open","gate8_open"] },
+  "hint": "Eight gates. Every ghost must act at the exact right moment. This is what you've been training for."
+}
