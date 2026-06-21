@@ -158,53 +158,50 @@ def debug_schema():
 @app.route("/debug/initdb")
 def debug_initdb():
     from database import get_connection
+    import psycopg2
     conn = get_connection()
+    conn.autocommit = True  # DDL outside transaction block avoids partial-rollback issues
     try:
-        with conn:
-            with conn.cursor() as cur:
-                # Drop old unrelated tables, recreate correct schema
-                cur.execute("""
-                    DROP TABLE IF EXISTS posts CASCADE;
-                    DROP TABLE IF EXISTS sessions CASCADE;
-                    DROP TABLE IF EXISTS users CASCADE;
-                    DROP TABLE IF EXISTS level_scores CASCADE;
-                    DROP TABLE IF EXISTS overall_scores CASCADE;
-                    DROP TABLE IF EXISTS ghost_recordings CASCADE;
-                """)
-                cur.execute("""
-                    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-                    CREATE TABLE IF NOT EXISTS users (
-                        user_id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-                        username       TEXT        NOT NULL UNIQUE,
-                        email          TEXT        NOT NULL UNIQUE,
-                        password_hash  TEXT        NOT NULL,
-                        email_verified BOOLEAN     NOT NULL DEFAULT FALSE,
-                        age_confirmed  BOOLEAN     NOT NULL DEFAULT FALSE,
-                        role           TEXT        NOT NULL DEFAULT 'player' CHECK(role IN ('player', 'admin')),
-                        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-
-                    CREATE TABLE IF NOT EXISTS level_scores (
-                        score_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-                        user_id      UUID        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-                        level_number INTEGER     NOT NULL CHECK(level_number BETWEEN 1 AND 20),
-                        best_time_ms INTEGER     NOT NULL,
-                        loops_used   INTEGER     NOT NULL CHECK(loops_used BETWEEN 1 AND 5),
-                        completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        UNIQUE(user_id, level_number)
-                    );
-
-                    CREATE INDEX IF NOT EXISTS idx_level_scores_leaderboard
-                        ON level_scores (level_number, best_time_ms ASC);
-
-                    CREATE TABLE IF NOT EXISTS overall_scores (
-                        overall_score_id UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-                        user_id          UUID        NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
-                        total_time_ms    INTEGER     NOT NULL,
-                        completed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """)
+        with conn.cursor() as cur:
+            cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+            cur.execute("DROP TABLE IF EXISTS ghost_recordings CASCADE")
+            cur.execute("DROP TABLE IF EXISTS level_scores CASCADE")
+            cur.execute("DROP TABLE IF EXISTS overall_scores CASCADE")
+            cur.execute("DROP TABLE IF EXISTS users CASCADE")
+            cur.execute("DROP TABLE IF EXISTS posts CASCADE")
+            cur.execute("DROP TABLE IF EXISTS sessions CASCADE")
+            cur.execute("""
+                CREATE TABLE users (
+                    user_id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                    username       TEXT        NOT NULL UNIQUE,
+                    email          TEXT        NOT NULL UNIQUE,
+                    password_hash  TEXT        NOT NULL,
+                    email_verified BOOLEAN     NOT NULL DEFAULT FALSE,
+                    age_confirmed  BOOLEAN     NOT NULL DEFAULT FALSE,
+                    role           TEXT        NOT NULL DEFAULT 'player' CHECK(role IN ('player', 'admin')),
+                    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE level_scores (
+                    score_id     UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id      UUID    NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                    level_number INTEGER NOT NULL CHECK(level_number BETWEEN 1 AND 20),
+                    best_time_ms INTEGER NOT NULL,
+                    loops_used   INTEGER NOT NULL CHECK(loops_used BETWEEN 1 AND 5),
+                    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(user_id, level_number)
+                )
+            """)
+            cur.execute("CREATE INDEX idx_level_scores_leaderboard ON level_scores (level_number, best_time_ms ASC)")
+            cur.execute("""
+                CREATE TABLE overall_scores (
+                    overall_score_id UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id          UUID    NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+                    total_time_ms    INTEGER NOT NULL,
+                    completed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
         return jsonify({"data": "Schema created successfully", "error": None})
     except Exception as e:
         return jsonify({"data": None, "error": str(e)})
