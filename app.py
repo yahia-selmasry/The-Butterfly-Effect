@@ -40,6 +40,65 @@ login_manager.login_message = "Please log in to access this page."
 LEVELS = list(range(1, 21))  # levels 1-20
 
 
+def _migrate_db():
+    """Ensure the database has the correct schema on every startup."""
+    from database import get_connection
+    try:
+        conn = get_connection()
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            # Check if users table has the correct user_id column
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'users' AND column_name = 'user_id'
+            """)
+            if cur.fetchone() is None:
+                # Schema is wrong — drop everything and recreate
+                app.logger.warning("DB schema mismatch detected — rebuilding schema")
+                cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+                for tbl in ["ghost_recordings", "level_scores", "overall_scores", "users", "posts", "sessions"]:
+                    cur.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
+                cur.execute("""
+                    CREATE TABLE users (
+                        user_id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                        username       TEXT        NOT NULL UNIQUE,
+                        email          TEXT        NOT NULL UNIQUE,
+                        password_hash  TEXT        NOT NULL,
+                        email_verified BOOLEAN     NOT NULL DEFAULT FALSE,
+                        age_confirmed  BOOLEAN     NOT NULL DEFAULT FALSE,
+                        role           TEXT        NOT NULL DEFAULT 'player' CHECK(role IN ('player', 'admin')),
+                        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE level_scores (
+                        score_id     UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id      UUID    NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                        level_number INTEGER NOT NULL CHECK(level_number BETWEEN 1 AND 20),
+                        best_time_ms INTEGER NOT NULL,
+                        loops_used   INTEGER NOT NULL CHECK(loops_used BETWEEN 1 AND 5),
+                        completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        UNIQUE(user_id, level_number)
+                    )
+                """)
+                cur.execute("CREATE INDEX idx_level_scores_leaderboard ON level_scores (level_number, best_time_ms ASC)")
+                cur.execute("""
+                    CREATE TABLE overall_scores (
+                        overall_score_id UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id          UUID    NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+                        total_time_ms    INTEGER NOT NULL,
+                        completed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                app.logger.warning("DB schema rebuilt successfully")
+        conn.close()
+    except Exception as e:
+        app.logger.error("DB migration error: %s", e)
+
+
+_migrate_db()
+
+
 @login_manager.user_loader
 def user_loader(user_id):
     return load_user_by_id(user_id)
