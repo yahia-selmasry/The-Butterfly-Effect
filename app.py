@@ -32,6 +32,7 @@ from models import (
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # disable static file caching
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
