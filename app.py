@@ -285,6 +285,48 @@ def play():
     return render_template("game.html")
 
 
+@app.route("/js/game.js")
+def serve_game_js():
+    """Serve game.js through Flask so Replit's static cache can't stale it."""
+    import os
+    path = os.path.join(app.root_path, "static", "js", "game.js")
+    with open(path, "r") as f:
+        content = f.read()
+    from flask import Response
+    resp = Response(content, mimetype="application/javascript")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+@app.route("/js/three.min.js")
+def serve_three_js():
+    """Serve three.min.js through Flask so Replit's static cache can't stale it."""
+    import os
+    path = os.path.join(app.root_path, "static", "js", "three.min.js")
+    with open(path, "rb") as f:
+        content = f.read()
+    from flask import Response
+    resp = Response(content, mimetype="application/javascript")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
+@app.route("/js/levels/<path:filename>")
+def serve_level_json(filename):
+    """Serve level JSON through Flask with no-cache headers."""
+    import os
+    path = os.path.join(app.root_path, "static", "levels", filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "not found"}), 404
+    with open(path, "r") as f:
+        content = f.read()
+    from flask import Response
+    resp = Response(content, mimetype="application/json")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 @app.route("/api/score", methods=["POST"])
 def submit_score():
     if not current_user.is_authenticated:
