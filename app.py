@@ -284,7 +284,10 @@ def index():
 def play():
     import time
     from flask import make_response
-    resp = make_response(render_template("game.html", cache_bust=int(time.time())))
+    game_js_path = os.path.join(app.root_path, "static", "js", "game.js")
+    with open(game_js_path, "r") as f:
+        game_js = f.read()
+    resp = make_response(render_template("game.html", cache_bust=int(time.time()), game_js=game_js))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     return resp

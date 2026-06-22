@@ -40,10 +40,10 @@
   });
 </script>
 
-<!-- Three.js must fully load before game.js runs -->
-<!-- Served via /api/assets/ so Replit's static router never intercepts them -->
+<!-- Three.js loaded via Flask route with no-cache headers -->
 <script src="/api/assets/three.min.js?v={{ cache_bust }}"></script>
-<script src="/api/assets/game.js?v={{ cache_bust }}"></script>
+<!-- game.js inlined by Flask so Replit cache can never stale it -->
+<script>{{ game_js | safe }}</script>
 
 </body>
 </html>
