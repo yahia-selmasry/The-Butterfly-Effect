@@ -30,7 +30,7 @@ let interactTarget = null;
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 async function boot(levelNum) {
   currentLevelNumber = levelNum || 1;
-  levelConfig = await fetch('/js/levels/level' + currentLevelNumber + '.json').then(r => r.json());
+  levelConfig = await fetch('/api/assets/levels/level' + currentLevelNumber + '.json').then(r => r.json());
   if (!scene) {
     initThree();
     setupInput();

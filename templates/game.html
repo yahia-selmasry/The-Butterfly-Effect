@@ -41,9 +41,9 @@
 </script>
 
 <!-- Three.js must fully load before game.js runs -->
-<!-- v={{ cache_bust }} forces CDN bypass on every deploy -->
-<script src="/js/three.min.js?v={{ cache_bust }}"></script>
-<script src="/js/game.js?v={{ cache_bust }}"></script>
+<!-- Served via /api/assets/ so Replit's static router never intercepts them -->
+<script src="/api/assets/three.min.js?v={{ cache_bust }}"></script>
+<script src="/api/assets/game.js?v={{ cache_bust }}"></script>
 
 </body>
 </html>
