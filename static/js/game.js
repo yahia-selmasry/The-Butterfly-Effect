@@ -29,8 +29,16 @@ let interactTarget = null;
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 async function boot(levelNum) {
-  currentLevelNumber = levelNum || 1;
-  levelConfig = await fetch('/api/assets/levels/level' + currentLevelNumber + '.json').then(r => r.json());
+  try {
+    currentLevelNumber = levelNum || 1;
+    const resp = await fetch('/api/assets/levels/level' + currentLevelNumber + '.json');
+    if (!resp.ok) throw new Error('Level fetch failed: ' + resp.status + ' ' + resp.url);
+    levelConfig = await resp.json();
+  } catch(e) {
+    showOverlay('<h1 style="color:#ff4444">Load Error</h1><p>' + e.message + '</p>');
+    return;
+  }
+  try {
   if (!scene) {
     initThree();
     setupInput();
@@ -62,6 +70,9 @@ async function boot(levelNum) {
   levelFailed = false;
   gameStarted = true;
   startLoop();
+  } catch(e) {
+    showOverlay('<h1 style="color:#ff4444">Game Error</h1><p style="font-size:13px;max-width:80%;word-break:break-all">' + e.message + '<br><small style="opacity:0.5">' + (e.stack||'').split('\n')[1] + '</small></p>');
+  }
 }
 
 // ─── Three.js init ────────────────────────────────────────────────────────────

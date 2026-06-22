@@ -42,6 +42,14 @@
 
 <!-- Three.js loaded via Flask route with no-cache headers -->
 <script src="/api/assets/three.min.js?v={{ cache_bust }}"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.getElementById('overlay').innerHTML =
+      '<h1 style="color:#ff4444">Load Error</h1>' +
+      '<p>three.min.js failed to load.<br>' +
+      '<small style="opacity:0.5">Check /api/assets/three.min.js in browser</small></p>';
+  }
+</script>
 <!-- game.js inlined by Flask so Replit cache can never stale it -->
 <script>{{ game_js | safe }}</script>
 
