@@ -45,17 +45,20 @@ def get_connection():
 
 def load_user_by_id(user_id: str):
     """Return a User object for flask-login's user_loader, or None."""
-    conn = get_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT user_id, username, email, role, email_verified, age_confirmed "
-                "FROM users WHERE user_id = %s",
-                (user_id,),
-            )
-            return User.from_row(cur.fetchone())
-    finally:
-        conn.close()
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT user_id, username, email, role, email_verified, age_confirmed "
+                    "FROM users WHERE user_id = %s",
+                    (user_id,),
+                )
+                return User.from_row(cur.fetchone())
+        finally:
+            conn.close()
+    except Exception:
+        return None
 
 
 def load_user_by_username(username: str):

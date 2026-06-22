@@ -192,8 +192,21 @@ def register():
 
 
 # ---------------------------------------------------------------------------
-# Debug route — remove after fixing schema
+# Debug routes — remove after fixing schema
 # ---------------------------------------------------------------------------
+
+@app.route("/ping")
+def ping():
+    import os
+    db_url = os.environ.get("DATABASE_URL", "NOT SET")
+    masked = db_url[:30] + "..." if len(db_url) > 30 else db_url
+    try:
+        from database import get_connection
+        conn = get_connection()
+        conn.close()
+        return jsonify({"status": "ok", "db": masked})
+    except Exception as e:
+        return jsonify({"status": "error", "db": masked, "error": str(e)}), 500
 
 @app.route("/debug/schema")
 def debug_schema():
