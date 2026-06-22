@@ -5,9 +5,9 @@ PYTHON=$(which python3.11 || which python3 || echo "")
 if [ -z "$PYTHON" ]; then echo "ERROR: python3 not found"; exit 1; fi
 echo "Using $($PYTHON --version 2>&1)"
 
-# Create venv if it doesn't exist, then install deps there
+# Always use .venv (not the local venv/ which was built with Python 3.8)
 if [ ! -f ".venv/bin/gunicorn" ]; then
-  echo "Setting up virtualenv..."
+  echo "Setting up virtualenv in .venv..."
   $PYTHON -m venv .venv
   .venv/bin/pip install --quiet flask flask-login werkzeug psycopg2-binary gunicorn
 fi
