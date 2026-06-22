@@ -41,8 +41,9 @@
 </script>
 
 <!-- Three.js must fully load before game.js runs -->
-<script src="/js/three.min.js"></script>
-<script src="/js/game.js"></script>
+<!-- v={{ cache_bust }} forces CDN bypass on every deploy -->
+<script src="/js/three.min.js?v={{ cache_bust }}"></script>
+<script src="/js/game.js?v={{ cache_bust }}"></script>
 
 </body>
 </html>

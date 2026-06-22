@@ -282,7 +282,12 @@ def index():
 
 @app.route("/play")
 def play():
-    return render_template("game.html")
+    import time
+    from flask import make_response
+    resp = make_response(render_template("game.html", cache_bust=int(time.time())))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @app.route("/js/game.js")
