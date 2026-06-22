@@ -1,7 +1,0 @@
-flask
-flask-login
-werkzeug
-psycopg2-binary
-gunicorn
-pytest
-# build-2
