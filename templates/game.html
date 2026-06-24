@@ -2,9 +2,72 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>The Butterfly Effect</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
+  <style>
+    /* ── Mobile touch controls ── */
+    #mobile-controls {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 220px;
+      pointer-events: none;
+      z-index: 50;
+    }
+    #joystick-zone {
+      position: absolute;
+      bottom: 24px; left: 24px;
+      width: 130px; height: 130px;
+      pointer-events: all;
+    }
+    #joystick-base {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.18);
+    }
+    #joystick-knob {
+      position: absolute;
+      width: 52px; height: 52px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: rgba(255,255,255,0.28);
+      border: 2px solid rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+    #look-zone {
+      position: absolute;
+      bottom: 0; left: 178px; right: 160px;
+      height: 220px;
+      pointer-events: all;
+    }
+    #btn-interact {
+      position: absolute;
+      bottom: 36px; right: 24px;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: rgba(255, 221, 68, 0.18);
+      border: 2px solid rgba(255, 221, 68, 0.6);
+      color: #ffdd44;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: all;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #btn-interact:active { background: rgba(255,221,68,0.35); }
+
+    @media (pointer: coarse) {
+      #mobile-controls { display: block; }
+      #controls-hint { display: none; }
+      #crosshair { display: none; }
+    }
+  </style>
 </head>
 <body>
 
@@ -23,6 +86,16 @@
     E — interact<br>
     Click to lock mouse
   </div>
+</div>
+
+<!-- Mobile touch controls -->
+<div id="mobile-controls">
+  <div id="joystick-zone">
+    <div id="joystick-base"></div>
+    <div id="joystick-knob"></div>
+  </div>
+  <div id="look-zone"></div>
+  <div id="btn-interact">USE</div>
 </div>
 
 <div id="overlay">

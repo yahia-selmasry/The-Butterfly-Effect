@@ -1,6 +1,6 @@
 // ─── Constants ───────────────────────────────────────────────────────────────
-const LOOP_DURATION_MS = 60000;
-const TIMER_SHOW_AT_MS = 50000;
+const LOOP_DURATION_MS = 30000;
+const TIMER_SHOW_AT_MS = 20000;
 const MAX_LOOPS = 5;
 const MAX_LEVELS = 20;
 const GHOST_COLORS = [0x4488ff, 0xff8844, 0x44ff88, 0xff44aa];
@@ -454,6 +454,12 @@ function movePlayer(dt) {
   if (keys['KeyA'] || keys['ArrowLeft'])  dir.x -= 1;
   if (keys['KeyD'] || keys['ArrowRight']) dir.x += 1;
 
+  // Joystick input
+  if (Math.abs(touch.joystickDelta.x) > 0.05 || Math.abs(touch.joystickDelta.y) > 0.05) {
+    dir.x += touch.joystickDelta.x;
+    dir.z += touch.joystickDelta.y;
+  }
+
   if (dir.lengthSq() > 0) {
     dir.normalize();
     dir.applyEuler(new THREE.Euler(0, yaw, 0));
@@ -750,6 +756,15 @@ async function submitScore(totalMs, loopsUsed) {
   } catch (e) { /* guest or offline — ignore */ }
 }
 
+// ─── Touch state ─────────────────────────────────────────────────────────────
+const touch = {
+  joystickId: null,
+  joystickOrigin: { x: 0, y: 0 },
+  joystickDelta: { x: 0, y: 0 },
+  lookId: null,
+  lookLast: { x: 0, y: 0 },
+};
+
 // ─── Input ────────────────────────────────────────────────────────────────────
 function setupInput() {
   document.addEventListener('keydown', e => {
@@ -773,6 +788,91 @@ function setupInput() {
     pitch -= e.movementY * 0.002;
     pitch  = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
   });
+
+  setupTouchInput();
+}
+
+function setupTouchInput() {
+  const joystickZone = document.getElementById('joystick-zone');
+  const joystickKnob = document.getElementById('joystick-knob');
+  const lookZone     = document.getElementById('look-zone');
+  const btnInteract  = document.getElementById('btn-interact');
+  if (!joystickZone) return;
+
+  const JR = 65; // joystick radius
+
+  joystickZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const rect = joystickZone.getBoundingClientRect();
+    touch.joystickId = t.identifier;
+    touch.joystickOrigin.x = rect.left + rect.width / 2;
+    touch.joystickOrigin.y = rect.top  + rect.height / 2;
+    touch.joystickDelta.x = 0;
+    touch.joystickDelta.y = 0;
+  }, { passive: false });
+
+  joystickZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier !== touch.joystickId) continue;
+      let dx = t.clientX - touch.joystickOrigin.x;
+      let dy = t.clientY - touch.joystickOrigin.y;
+      const len = Math.sqrt(dx*dx + dy*dy);
+      if (len > JR) { dx = dx/len*JR; dy = dy/len*JR; }
+      touch.joystickDelta.x = dx / JR;
+      touch.joystickDelta.y = dy / JR;
+      joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    }
+  }, { passive: false });
+
+  const endJoystick = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier !== touch.joystickId) continue;
+      touch.joystickId = null;
+      touch.joystickDelta.x = 0;
+      touch.joystickDelta.y = 0;
+      joystickKnob.style.transform = 'translate(-50%, -50%)';
+    }
+  };
+  joystickZone.addEventListener('touchend', endJoystick, { passive: false });
+  joystickZone.addEventListener('touchcancel', endJoystick, { passive: false });
+
+  lookZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    touch.lookId = t.identifier;
+    touch.lookLast.x = t.clientX;
+    touch.lookLast.y = t.clientY;
+    if (gameStarted && !levelComplete && !levelFailed) isPointerLocked = true;
+  }, { passive: false });
+
+  lookZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier !== touch.lookId) continue;
+      const dx = t.clientX - touch.lookLast.x;
+      const dy = t.clientY - touch.lookLast.y;
+      yaw   -= dx * 0.004;
+      pitch -= dy * 0.004;
+      pitch  = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
+      touch.lookLast.x = t.clientX;
+      touch.lookLast.y = t.clientY;
+    }
+  }, { passive: false });
+
+  const endLook = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touch.lookId) touch.lookId = null;
+    }
+  };
+  lookZone.addEventListener('touchend', endLook, { passive: false });
+  lookZone.addEventListener('touchcancel', endLook, { passive: false });
+
+  btnInteract.addEventListener('touchstart', e => {
+    e.preventDefault();
+    interact();
+  }, { passive: false });
 }
 
 function requestPointerLock() {
@@ -815,6 +915,7 @@ window.requestPointerLock = requestPointerLock;
 window.boot = boot;
 
 // ─── Start screen ─────────────────────────────────────────────────────────────
+const isMobile = window.matchMedia('(pointer: coarse)').matches;
 showOverlay(`
   <h1>The Butterfly Effect</h1>
   <p>20 Levels &nbsp;·&nbsp; 5 Loops Each</p>
@@ -823,7 +924,9 @@ showOverlay(`
     Each loop, your past self replays beside you.
   </p>
   <p style="margin-top:10px;font-size:13px;color:rgba(255,255,255,0.3)">
-    WASD — move &nbsp;·&nbsp; Mouse — look &nbsp;·&nbsp; E — interact
+    ${isMobile
+      ? 'Left joystick — move &nbsp;·&nbsp; Right side — look &nbsp;·&nbsp; USE — interact'
+      : 'WASD — move &nbsp;·&nbsp; Mouse — look &nbsp;·&nbsp; E — interact'}
   </p>
-  <button onclick="hideOverlay(); boot(1).then(() => requestPointerLock());">Play Level 1</button>
+  <button onclick="hideOverlay(); boot(1).then(() => { ${isMobile ? 'isPointerLocked=true' : 'requestPointerLock()'} });">Play Level 1</button>
 `);
