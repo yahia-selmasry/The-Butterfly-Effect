@@ -1,6 +1,6 @@
 // ─── Constants ───────────────────────────────────────────────────────────────
-const LOOP_DURATION_MS = 30000;
-const TIMER_SHOW_AT_MS = 20000;
+const LOOP_DURATION_MS = 15000;
+const TIMER_SHOW_AT_MS = 5000;
 const MAX_LOOPS = 5;
 const MAX_LEVELS = 20;
 const GHOST_COLORS = [0x4488ff, 0xff8844, 0x44ff88, 0xff44aa];
@@ -69,6 +69,7 @@ async function boot(levelNum) {
   levelComplete = false;
   levelFailed = false;
   gameStarted = true;
+  if (window.matchMedia('(pointer: coarse)').matches) isPointerLocked = true;
   startLoop();
   } catch(e) {
     showOverlay('<h1 style="color:#ff4444">Game Error</h1><p style="font-size:13px;max-width:80%;word-break:break-all">' + e.message + '<br><small style="opacity:0.5">' + (e.stack||'').split('\n')[1] + '</small></p>');
@@ -547,7 +548,8 @@ function checkInteract() {
 }
 
 function interact() {
-  if (!interactTarget || !isPointerLocked) return;
+  if (!interactTarget) return;
+  if (!isPointerLocked && !window.matchMedia('(pointer: coarse)').matches) return;
   applyInteraction(interactTarget, null);
   recordAction({ type: 'interact', objectId: interactTarget, t: performance.now() - loopStartTime });
 }
