@@ -1,17 +1,15 @@
 {
   "level_number": 7,
-  "name": "The Crossroads",
+  "name": "Stand Your Ground",
   "vault_size": [24, 6, 24],
   "player_start": [0, 0.5, 10],
   "vault_door": { "position": [0, 1.5, -10], "size": [2, 3, 0.3] },
   "objects": [
-    { "id": "lever1", "type": "lever", "position": [-9, 0.5, 0],  "label": "West lever" },
-    { "id": "lever2", "type": "lever", "position": [ 9, 0.5, 0],  "label": "East lever" },
-    { "id": "lever3", "type": "lever", "position": [ 0, 0.5, -7], "label": "North lever" },
-    { "id": "gate1",  "type": "gate",  "position": [-4, 1.5, 0],  "size": [3, 3, 0.3], "controlled_by": "lever1", "open_duration": 5000 },
-    { "id": "gate2",  "type": "gate",  "position": [ 4, 1.5, 0],  "size": [3, 3, 0.3], "controlled_by": "lever2", "open_duration": 5000 },
-    { "id": "gate3",  "type": "gate",  "position": [ 0, 1.5, -5], "size": [4, 3, 0.3], "controlled_by": "lever3", "open_duration": 4000 }
+    { "id": "plate1", "type": "pressure_plate", "position": [-7, 0, 0],  "label": "Plate A" },
+    { "id": "plate2", "type": "pressure_plate", "position": [ 7, 0, 0],  "label": "Plate B" },
+    { "id": "gate1",  "type": "gate",           "position": [ 0, 1.5, -4], "size": [6, 3, 0.3], "controlled_by": "plate1", "open_duration": 99999 },
+    { "id": "gate2",  "type": "gate",           "position": [ 0, 1.5, -7], "size": [6, 3, 0.3], "controlled_by": "plate2", "open_duration": 99999 }
   ],
-  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open", "gate2_open", "gate3_open"] },
-  "hint": "Gates on both sides and ahead. Assign each ghost a job."
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open"] },
+  "hint": "Pressure plates open gates only while someone stands on them. You need a ghost on each."
 }

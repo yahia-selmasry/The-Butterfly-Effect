@@ -26,6 +26,7 @@ let gameStarted = false;
 
 let minimapCanvas, minimapCtx;
 let interactTarget = null;
+let movingPlatforms = [];
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 async function boot(levelNum) {
@@ -181,10 +182,14 @@ function buildLevel() {
   // Vault door — glowing gold safe door
   buildVaultDoor(levelConfig.vault_door, h);
 
+  movingPlatforms = [];
   // Level objects
   for (const obj of levelConfig.objects) {
-    if (obj.type === 'lever') buildLever(obj);
-    if (obj.type === 'gate')  buildGate(obj);
+    if (obj.type === 'lever')            buildLever(obj);
+    if (obj.type === 'gate')             buildGate(obj);
+    if (obj.type === 'button')           buildButton(obj);
+    if (obj.type === 'pressure_plate')   buildPressurePlate(obj);
+    if (obj.type === 'moving_platform')  buildMovingPlatform(obj);
   }
 
   // Player anchor
@@ -354,6 +359,94 @@ function buildGate(obj) {
   };
 }
 
+function buildButton(obj) {
+  const group = new THREE.Group();
+  group.position.set(...obj.position);
+
+  // Base
+  group.add(makeMesh([0.5, 0.1, 0.5],
+    new THREE.MeshLambertMaterial({ color: 0x334455 }), [0, 0.05, 0]));
+
+  // Button cap
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.2, 0.12, 16),
+    new THREE.MeshLambertMaterial({ color: 0xff2222, emissive: 0x440000 })
+  );
+  cap.position.y = 0.16;
+  cap.name = 'cap';
+  group.add(cap);
+
+  // Ring
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.28, 0.03, 6, 24),
+    new THREE.MeshLambertMaterial({ color: 0xff4444, emissive: 0x220000 })
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.01;
+  ring.name = 'ring';
+  group.add(ring);
+
+  group.userData = { id: obj.id, type: 'button' };
+  scene.add(group);
+  levelObjects[obj.id] = {
+    mesh: group,
+    state: { pressed: false, pressedUntil: 0 },
+    config: obj
+  };
+}
+
+function buildPressurePlate(obj) {
+  const group = new THREE.Group();
+  group.position.set(...obj.position);
+
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.06, 1.4),
+    new THREE.MeshLambertMaterial({ color: 0x446644, emissive: 0x112211 })
+  );
+  plate.position.y = 0.03;
+  plate.name = 'plate';
+  group.add(plate);
+
+  const glow = new THREE.PointLight(0x44ff44, 0.5, 2.5);
+  glow.position.y = 0.3;
+  glow.name = 'glow';
+  group.add(glow);
+
+  group.userData = { id: obj.id, type: 'pressure_plate' };
+  scene.add(group);
+  levelObjects[obj.id] = {
+    mesh: group,
+    state: { active: false },
+    config: obj
+  };
+}
+
+function buildMovingPlatform(obj) {
+  const group = new THREE.Group();
+  const startPos = new THREE.Vector3(...obj.position);
+  const endPos   = new THREE.Vector3(...obj.end_position);
+  group.position.copy(startPos);
+
+  const plat = new THREE.Mesh(
+    new THREE.BoxGeometry(obj.size[0] || 2, 0.25, obj.size[1] || 2),
+    new THREE.MeshLambertMaterial({ color: 0x557799, emissive: 0x112233 })
+  );
+  plat.name = 'platform';
+  group.add(plat);
+
+  // Edge glow strips
+  const edgeMat = new THREE.MeshLambertMaterial({ color: 0x88bbff, emissive: 0x223355 });
+  group.add(makeMesh([obj.size[0] || 2, 0.06, 0.06], edgeMat, [0, 0.15,  (obj.size[1]||2)/2]));
+  group.add(makeMesh([obj.size[0] || 2, 0.06, 0.06], edgeMat, [0, 0.15, -(obj.size[1]||2)/2]));
+
+  group.userData = { id: obj.id, type: 'moving_platform' };
+  scene.add(group);
+
+  const period = (obj.period || 4000);
+  movingPlatforms.push({ mesh: group, start: startPos, end: endPos, period, offset: obj.offset || 0 });
+  levelObjects[obj.id] = { mesh: group, state: {}, config: obj };
+}
+
 // ─── Loop management ──────────────────────────────────────────────────────────
 function startLoop() {
   loopStartTime = performance.now();
@@ -370,15 +463,16 @@ function startLoop() {
 
 function resetLevelObjects() {
   for (const [id, obj] of Object.entries(levelObjects)) {
-    if (obj.config && obj.config.type === 'gate') {
+    const type = obj.mesh.userData.type;
+
+    if (type === 'gate') {
       obj.mesh.visible = true;
-      obj.mesh.position.y = obj.config.position[1];
       obj.state.open = false;
       obj.state.openUntil = 0;
       const gl = obj.mesh.getObjectByName('gateLight');
       if (gl) { gl.color.set(0x2244ff); gl.intensity = 1.0; }
     }
-    if (obj.mesh.userData.type === 'lever') {
+    if (type === 'lever') {
       obj.state.pulled = false;
       const handle = obj.mesh.getObjectByName('handle');
       const grip   = obj.mesh.getObjectByName('grip');
@@ -386,6 +480,22 @@ function resetLevelObjects() {
       if (handle) { handle.rotation.z = 0.45; handle.position.set(0, 0.52, 0.12); }
       if (grip)   grip.position.set(0.19, 0.78, 0.24);
       if (ring)   ring.material.emissive.setHex(0x443300);
+    }
+    if (type === 'button') {
+      obj.state.pressed = false;
+      obj.state.pressedUntil = 0;
+      const cap = obj.mesh.getObjectByName('cap');
+      if (cap) { cap.position.y = 0.16; cap.material.emissive.setHex(0x440000); }
+    }
+    if (type === 'pressure_plate') {
+      obj.state.active = false;
+      const glow = obj.mesh.getObjectByName('glow');
+      const plateMesh = obj.mesh.getObjectByName('plate');
+      if (glow)      glow.intensity = 0.5;
+      if (plateMesh) plateMesh.material.emissive.setHex(0x112211);
+    }
+    if (type === 'moving_platform') {
+      obj.mesh.position.copy(movingPlatforms.find(p => p.mesh === obj.mesh)?.start || obj.mesh.position);
     }
   }
   playerBody.position.set(...levelConfig.player_start);
@@ -498,15 +608,83 @@ function replayGhosts(now, elapsed) {
   }
 }
 
-// ─── Gate logic ───────────────────────────────────────────────────────────────
+// ─── Gate / button / pressure plate / platform updates ───────────────────────
 function updateGates(now) {
+  const elapsed = now - loopStartTime;
+
   for (const [id, obj] of Object.entries(levelObjects)) {
-    if (obj.mesh.userData.type === 'gate' && obj.state.open) {
+    const type = obj.mesh.userData.type;
+
+    if (type === 'gate' && obj.state.open) {
       if (now > obj.state.openUntil) {
         obj.state.open = false;
         obj.mesh.visible = true;
+        const gl = obj.mesh.getObjectByName('gateLight');
+        if (gl) { gl.color.set(0x2244ff); gl.intensity = 1.0; }
       }
     }
+
+    if (type === 'button' && obj.state.pressed) {
+      if (now > obj.state.pressedUntil) {
+        obj.state.pressed = false;
+        const cap = obj.mesh.getObjectByName('cap');
+        if (cap) { cap.position.y = 0.16; cap.material.emissive.setHex(0x440000); }
+        // close gates it controls
+        for (const cfgObj of levelConfig.objects) {
+          if (cfgObj.type === 'gate' && cfgObj.controlled_by === id) {
+            const gate = levelObjects[cfgObj.id];
+            if (gate) { gate.state.open = false; gate.mesh.visible = true; }
+          }
+        }
+      }
+    }
+
+    if (type === 'pressure_plate') {
+      const plate = obj.mesh;
+      const px = playerBody.position.x - plate.position.x;
+      const pz = playerBody.position.z - plate.position.z;
+      let onPlate = Math.abs(px) < 0.8 && Math.abs(pz) < 0.8;
+
+      // Also check ghosts
+      for (const ghost of ghosts) {
+        const gx = ghost.position.x - plate.position.x;
+        const gz = ghost.position.z - plate.position.z;
+        if (Math.abs(gx) < 0.8 && Math.abs(gz) < 0.8) onPlate = true;
+      }
+
+      if (onPlate !== obj.state.active) {
+        obj.state.active = onPlate;
+        const glow = plate.getObjectByName('glow');
+        const plateMesh = plate.getObjectByName('plate');
+        if (glow)      glow.intensity = onPlate ? 2.0 : 0.5;
+        if (plateMesh) plateMesh.material.emissive.setHex(onPlate ? 0x224422 : 0x112211);
+        for (const cfgObj of levelConfig.objects) {
+          if (cfgObj.type === 'gate' && cfgObj.controlled_by === id) {
+            const gate = levelObjects[cfgObj.id];
+            if (!gate) continue;
+            if (onPlate) {
+              gate.state.open = true;
+              gate.state.openUntil = Infinity;
+              gate.mesh.visible = false;
+              const gl = gate.mesh.getObjectByName('gateLight');
+              if (gl) { gl.color.set(0x00ff88); gl.intensity = 0; }
+            } else {
+              gate.state.open = false;
+              gate.mesh.visible = true;
+              const gl = gate.mesh.getObjectByName('gateLight');
+              if (gl) { gl.color.set(0x2244ff); gl.intensity = 1.0; }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Moving platforms
+  for (const plat of movingPlatforms) {
+    const t = ((elapsed + plat.offset) % plat.period) / plat.period;
+    const s = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+    plat.mesh.position.lerpVectors(plat.start, plat.end, s);
   }
 }
 
@@ -528,7 +706,8 @@ function checkInteract() {
   const playerPos = playerBody.position;
 
   for (const [id, obj] of Object.entries(levelObjects)) {
-    if (obj.mesh.userData.type !== 'lever') continue;
+    const type = obj.mesh.userData.type;
+    if (type !== 'lever' && type !== 'button') continue;
     const dist = playerPos.distanceTo(obj.mesh.position);
     if (dist < 2.5) {
       interactTarget = id;
@@ -538,10 +717,19 @@ function checkInteract() {
 
   const prompt = document.getElementById('interact-prompt');
   if (interactTarget) {
-    const pulled = levelObjects[interactTarget].state.pulled;
+    const obj = levelObjects[interactTarget];
+    const type = obj.mesh.userData.type;
+    let text, color;
+    if (type === 'lever') {
+      text  = obj.state.pulled ? 'Lever already pulled' : 'Press E to pull lever';
+      color = obj.state.pulled ? 'rgba(255,255,255,0.4)' : '#ffdd44';
+    } else {
+      text  = obj.state.pressed ? 'Button active...' : 'Press E to press button';
+      color = obj.state.pressed ? 'rgba(255,255,255,0.4)' : '#ff6666';
+    }
     prompt.style.display = 'block';
-    prompt.textContent = pulled ? 'Lever already pulled' : 'Press E to pull lever';
-    prompt.style.color = pulled ? 'rgba(255,255,255,0.4)' : '#ffdd44';
+    prompt.textContent = text;
+    prompt.style.color = color;
   } else {
     prompt.style.display = 'none';
   }
@@ -556,21 +744,37 @@ function interact() {
 
 function applyInteraction(objectId, loopObjs) {
   const obj = levelObjects[objectId];
-  if (!obj || obj.mesh.userData.type !== 'lever') return;
-  if (obj.state.pulled) return;
+  if (!obj) return;
+  const type = obj.mesh.userData.type;
 
-  obj.state.pulled = true;
-  const handle = obj.mesh.getObjectByName('handle');
-  const grip   = obj.mesh.getObjectByName('grip');
-  const ring   = obj.mesh.getObjectByName('ring');
-  if (handle) { handle.rotation.z = -0.45; handle.position.set(0, 0.52, -0.12); }
-  if (grip)   grip.position.set(-0.19, 0.78, -0.24);
-  if (ring)   ring.material.emissive.setHex(0x885500);
-
-  for (const levelObj of levelConfig.objects) {
-    if (levelObj.type === 'gate' && levelObj.controlled_by === objectId) {
-      openGate(levelObj.id, loopObjs);
+  if (type === 'lever') {
+    if (obj.state.pulled) return;
+    obj.state.pulled = true;
+    const handle = obj.mesh.getObjectByName('handle');
+    const grip   = obj.mesh.getObjectByName('grip');
+    const ring   = obj.mesh.getObjectByName('ring');
+    if (handle) { handle.rotation.z = -0.45; handle.position.set(0, 0.52, -0.12); }
+    if (grip)   grip.position.set(-0.19, 0.78, -0.24);
+    if (ring)   ring.material.emissive.setHex(0x885500);
+    for (const cfgObj of levelConfig.objects) {
+      if (cfgObj.type === 'gate' && cfgObj.controlled_by === objectId) {
+        openGate(cfgObj.id, loopObjs);
+      }
     }
+  }
+
+  if (type === 'button') {
+    obj.state.pressed = true;
+    const duration = obj.config.press_duration || 5000;
+    obj.state.pressedUntil = performance.now() + duration;
+    const cap = obj.mesh.getObjectByName('cap');
+    if (cap) { cap.position.y = 0.10; cap.material.emissive.setHex(0xaa0000); }
+    for (const cfgObj of levelConfig.objects) {
+      if (cfgObj.type === 'gate' && cfgObj.controlled_by === objectId) {
+        openGate(cfgObj.id, loopObjs);
+      }
+    }
+    if (loopObjs) loopObjs[objectId] = { pressed: true };
   }
 }
 
@@ -698,19 +902,28 @@ function drawMinimap() {
     return [(x + w/2) * scale + 3, (z + d/2) * scale + 3];
   }
 
-  // Gate
   for (const [id, obj] of Object.entries(levelObjects)) {
-    if (obj.mesh.userData.type === 'gate') {
-      const [mx, mz] = worldToMap(obj.mesh.position.x, obj.mesh.position.z);
+    const type = obj.mesh.userData.type;
+    const [mx, mz] = worldToMap(obj.mesh.position.x, obj.mesh.position.z);
+    if (type === 'gate') {
       ctx.fillStyle = obj.state.open ? 'rgba(0,255,140,0.7)' : 'rgba(60,120,255,0.7)';
       ctx.fillRect(mx - 10, mz - 2, 20, 4);
     }
-    if (obj.mesh.userData.type === 'lever') {
-      const [mx, mz] = worldToMap(obj.mesh.position.x, obj.mesh.position.z);
+    if (type === 'lever') {
       ctx.fillStyle = obj.state.pulled ? '#ff8844' : '#ffee44';
-      ctx.beginPath();
-      ctx.arc(mx, mz, 4, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(mx, mz, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    if (type === 'button') {
+      ctx.fillStyle = obj.state.pressed ? '#ff4444' : '#ff9999';
+      ctx.beginPath(); ctx.arc(mx, mz, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    if (type === 'pressure_plate') {
+      ctx.fillStyle = obj.state.active ? '#44ff44' : '#226622';
+      ctx.fillRect(mx - 5, mz - 5, 10, 10);
+    }
+    if (type === 'moving_platform') {
+      ctx.fillStyle = '#88bbff';
+      ctx.fillRect(mx - 6, mz - 3, 12, 6);
     }
   }
 

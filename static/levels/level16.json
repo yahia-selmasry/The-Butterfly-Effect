@@ -1,23 +1,23 @@
 {
   "level_number": 16,
-  "name": "Mirror Image",
-  "vault_size": [30, 6, 30],
-  "player_start": [0, 0.5, 13],
-  "vault_door": { "position": [0, 1.5, -13], "size": [2, 3, 0.3] },
+  "name": "The Fortress",
+  "vault_size": [32, 6, 32],
+  "player_start": [0, 0.5, 14],
+  "vault_door": { "position": [0, 1.5, -14], "size": [2, 3, 0.3] },
   "objects": [
-    { "id": "lever1", "type": "lever", "position": [-12, 0.5,  9], "label": "L1" },
-    { "id": "lever2", "type": "lever", "position": [ 12, 0.5,  9], "label": "R1" },
-    { "id": "lever3", "type": "lever", "position": [-12, 0.5,  3], "label": "L2" },
-    { "id": "lever4", "type": "lever", "position": [ 12, 0.5,  3], "label": "R2" },
-    { "id": "lever5", "type": "lever", "position": [-12, 0.5, -5], "label": "L3" },
-    { "id": "lever6", "type": "lever", "position": [ 12, 0.5, -5], "label": "R3 (you)" },
-    { "id": "gate1",  "type": "gate",  "position": [-6, 1.5,  6],  "size": [3, 3, 0.3], "controlled_by": "lever1", "open_duration": 5000 },
-    { "id": "gate2",  "type": "gate",  "position": [ 6, 1.5,  6],  "size": [3, 3, 0.3], "controlled_by": "lever2", "open_duration": 5000 },
-    { "id": "gate3",  "type": "gate",  "position": [-6, 1.5,  0],  "size": [3, 3, 0.3], "controlled_by": "lever3", "open_duration": 4000 },
-    { "id": "gate4",  "type": "gate",  "position": [ 6, 1.5,  0],  "size": [3, 3, 0.3], "controlled_by": "lever4", "open_duration": 4000 },
-    { "id": "gate5",  "type": "gate",  "position": [-6, 1.5, -7],  "size": [3, 3, 0.3], "controlled_by": "lever5", "open_duration": 3000 },
-    { "id": "gate6",  "type": "gate",  "position": [ 6, 1.5, -7],  "size": [3, 3, 0.3], "controlled_by": "lever6", "open_duration": 3000 }
+    { "id": "plate1",    "type": "pressure_plate",  "position": [-13, 0, 10],   "label": "Plate NW" },
+    { "id": "plate2",    "type": "pressure_plate",  "position": [ 13, 0, 10],   "label": "Plate NE" },
+    { "id": "plate3",    "type": "pressure_plate",  "position": [-13, 0,  0],   "label": "Plate W" },
+    { "id": "plate4",    "type": "pressure_plate",  "position": [ 13, 0,  0],   "label": "Plate E" },
+    { "id": "btn1",      "type": "button",          "position": [  0, 0.5,-8],  "label": "Center", "press_duration": 5000 },
+    { "id": "platform1", "type": "moving_platform", "position": [-13, 0.5, 10], "end_position": [-13, 0.5, 0], "size": [2, 2], "period": 4000 },
+    { "id": "platform2", "type": "moving_platform", "position": [ 13, 0.5, 10], "end_position": [13, 0.5, 0],  "size": [2, 2], "period": 4000, "offset": 2000 },
+    { "id": "gate1",     "type": "gate",            "position": [-6, 1.5, 7],   "size": [3, 3, 0.3], "controlled_by": "plate1", "open_duration": 99999 },
+    { "id": "gate2",     "type": "gate",            "position": [ 6, 1.5, 7],   "size": [3, 3, 0.3], "controlled_by": "plate2", "open_duration": 99999 },
+    { "id": "gate3",     "type": "gate",            "position": [-6, 1.5, 0],   "size": [3, 3, 0.3], "controlled_by": "plate3", "open_duration": 99999 },
+    { "id": "gate4",     "type": "gate",            "position": [ 6, 1.5, 0],   "size": [3, 3, 0.3], "controlled_by": "plate4", "open_duration": 99999 },
+    { "id": "gate5",     "type": "gate",            "position": [ 0, 1.5,-11],  "size": [6, 3, 0.3], "controlled_by": "btn1",   "open_duration": 5000 }
   ],
-  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open","gate5_open","gate6_open"] },
-  "hint": "Perfect symmetry. Loop 1 left, loop 2 right — mirrors all the way down."
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open","gate5_open"] },
+  "hint": "Four plates need four ghosts. Ride platforms to reach the outer plates. Loop 5 presses center and runs."
 }

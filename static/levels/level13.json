@@ -1,15 +1,19 @@
 {
   "level_number": 13,
-  "name": "Simultaneous",
-  "vault_size": [26, 6, 26],
-  "player_start": [0, 0.5, 11],
-  "vault_door": { "position": [0, 1.5, -11], "size": [2, 3, 0.3] },
+  "name": "The Carousel",
+  "vault_size": [30, 6, 30],
+  "player_start": [0, 0.5, 13],
+  "vault_door": { "position": [0, 1.5, -13], "size": [2, 3, 0.3] },
   "objects": [
-    { "id": "lever1", "type": "lever", "position": [-10, 0.5, 0], "label": "Left lever" },
-    { "id": "lever2", "type": "lever", "position": [ 10, 0.5, 0], "label": "Right lever" },
-    { "id": "gate1",  "type": "gate",  "position": [ 0, 1.5, -5], "size": [5, 3, 0.3], "controlled_by": "lever1", "open_duration": 3000 },
-    { "id": "gate2",  "type": "gate",  "position": [ 0, 1.5, -8], "size": [5, 3, 0.3], "controlled_by": "lever2", "open_duration": 3000 }
+    { "id": "platform1", "type": "moving_platform", "position": [-10, 0.5, 6],  "end_position": [10, 0.5, 6],  "size": [2.5, 2.5], "period": 6000 },
+    { "id": "platform2", "type": "moving_platform", "position": [ 10, 0.5,-2],  "end_position": [-10, 0.5,-2], "size": [2.5, 2.5], "period": 6000, "offset": 3000 },
+    { "id": "plate1",    "type": "pressure_plate",  "position": [-12, 0, 6],    "label": "Hold left" },
+    { "id": "plate2",    "type": "pressure_plate",  "position": [ 12, 0,-2],    "label": "Hold right" },
+    { "id": "btn1",      "type": "button",          "position": [  0, 0.5,-7],  "label": "Vault open", "press_duration": 5000 },
+    { "id": "gate1",     "type": "gate",            "position": [ 0, 1.5, 2],   "size": [8, 3, 0.3], "controlled_by": "plate1", "open_duration": 99999 },
+    { "id": "gate2",     "type": "gate",            "position": [ 0, 1.5,-5],   "size": [8, 3, 0.3], "controlled_by": "plate2", "open_duration": 99999 },
+    { "id": "gate3",     "type": "gate",            "position": [ 0, 1.5,-10],  "size": [6, 3, 0.3], "controlled_by": "btn1",   "open_duration": 5000 }
   ],
-  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open"] },
-  "hint": "Both gates must be open at the same moment. Pull levers at the same time across loops."
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open"] },
+  "hint": "Ride platforms to reach the far plates. Two ghosts hold plates, you press the final button."
 }

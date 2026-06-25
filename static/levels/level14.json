@@ -1,19 +1,23 @@
 {
   "level_number": 14,
-  "name": "The Squeeze",
-  "vault_size": [22, 6, 28],
-  "player_start": [0, 0.5, 12],
-  "vault_door": { "position": [0, 1.5, -12], "size": [2, 3, 0.3] },
+  "name": "Crossfire",
+  "vault_size": [30, 6, 30],
+  "player_start": [0, 0.5, 13],
+  "vault_door": { "position": [0, 1.5, -13], "size": [2, 3, 0.3] },
   "objects": [
-    { "id": "lever1", "type": "lever", "position": [-8, 0.5,  8], "label": "Lever 1" },
-    { "id": "lever2", "type": "lever", "position": [ 8, 0.5,  4], "label": "Lever 2" },
-    { "id": "lever3", "type": "lever", "position": [-8, 0.5, -2], "label": "Lever 3" },
-    { "id": "lever4", "type": "lever", "position": [ 8, 0.5, -8], "label": "Lever 4" },
-    { "id": "gate1",  "type": "gate",  "position": [0, 1.5,  5], "size": [7, 3, 0.3], "controlled_by": "lever1", "open_duration": 4000 },
-    { "id": "gate2",  "type": "gate",  "position": [0, 1.5,  1], "size": [7, 3, 0.3], "controlled_by": "lever2", "open_duration": 3500 },
-    { "id": "gate3",  "type": "gate",  "position": [0, 1.5, -4], "size": [7, 3, 0.3], "controlled_by": "lever3", "open_duration": 3000 },
-    { "id": "gate4",  "type": "gate",  "position": [0, 1.5, -9], "size": [7, 3, 0.3], "controlled_by": "lever4", "open_duration": 2500 }
+    { "id": "lever1", "type": "lever",          "position": [-12, 0.5, 9],   "label": "L1" },
+    { "id": "btn1",   "type": "button",         "position": [ 12, 0.5, 9],   "label": "B1", "press_duration": 4000 },
+    { "id": "plate1", "type": "pressure_plate", "position": [-12, 0, 0],     "label": "P1" },
+    { "id": "btn2",   "type": "button",         "position": [ 12, 0.5, 0],   "label": "B2", "press_duration": 4000 },
+    { "id": "lever2", "type": "lever",          "position": [-12, 0.5,-8],   "label": "L2" },
+    { "id": "plate2", "type": "pressure_plate", "position": [  0, 0, -10],   "label": "P2" },
+    { "id": "gate1",  "type": "gate",           "position": [-5, 1.5, 5],    "size": [4, 3, 0.3], "controlled_by": "lever1", "open_duration": 5000 },
+    { "id": "gate2",  "type": "gate",           "position": [ 5, 1.5, 5],    "size": [4, 3, 0.3], "controlled_by": "btn1",   "open_duration": 4000 },
+    { "id": "gate3",  "type": "gate",           "position": [-5, 1.5,-2],    "size": [4, 3, 0.3], "controlled_by": "plate1", "open_duration": 99999 },
+    { "id": "gate4",  "type": "gate",           "position": [ 5, 1.5,-2],    "size": [4, 3, 0.3], "controlled_by": "btn2",   "open_duration": 4000 },
+    { "id": "gate5",  "type": "gate",           "position": [ 0, 1.5,-9],    "size": [6, 3, 0.3], "controlled_by": "lever2", "open_duration": 4000 },
+    { "id": "gate6",  "type": "gate",           "position": [ 0, 1.5,-11],   "size": [6, 3, 0.3], "controlled_by": "plate2", "open_duration": 99999 }
   ],
-  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open"] },
-  "hint": "Gates get shorter each time. The last gate is only 2.5 seconds. Sprint hard."
+  "win_condition": { "type": "reach_vault_door", "requires": ["gate1_open","gate2_open","gate3_open","gate4_open","gate5_open","gate6_open"] },
+  "hint": "Every gate type mixed together. Plan five loops carefully — one wrong move and the path closes."
 }
